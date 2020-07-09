@@ -1,4 +1,7 @@
 import PySimpleGUI as sg
+import analysis
+
+img_folder = "pieces_wooden"
 
 perspective = 'w'
 board_graph = None
@@ -32,11 +35,38 @@ def Init(graph):
 	global board_graph
 	board_graph = graph
 
+def get_curr_fen():
+	out = ""
+	blank_count = 0
+	for j in reversed(range(0, 8)):
+		for i in range(0, 8):
+			piece = get_piece(i, j)
+			if piece == '':
+				blank_count = blank_count + 1
+			else:
+				if blank_count != 0:
+					out = out + str(blank_count)
+					blank_count = 0
+				out = out + piece
+		if blank_count != 0:
+			out = out + str(blank_count)
+			blank_count = 0
+		if j != 0:
+			out = out + "/"
+
+	out = out + " " + curr_data['turn'] + " " + curr_data['castling'] + " "
+	if curr_data['en passant'] == '-':
+		out = out + "- "
+	else:
+		out = out + xy_to_rank_file(curr_data['en passant'][0], curr_data['en passant'][1]) + " "
+
+	out = out + str(curr_data['move counts'][0]) + " " + str(curr_data['move counts'][1])
+	return out
+
 def set_pos_from_fen(FEN):
 	global curr_data
 	curr_data = data_from_fen(FEN)
 	draw_board()
-
 
 def xy_to_rank_file(x, y):
 	if x == 0:
@@ -90,7 +120,7 @@ def board_image_coords_to_xy(x, y):
 
 def board_image_coords(row, column):
 	# 0-indexed
-	return (20 + row * 100, 80 + column * 100)
+	return (row * 100, 100 + column * 100)
 
 def data_from_fen(FEN):
 	str = FEN.split(' ')
@@ -114,7 +144,7 @@ def data_from_fen(FEN):
 	data['turn'] = str[1]
 	data['castling'] = str[2]
 	data['en passant'] = rank_file_to_xy(str[3])
-	data['move counts'] = (int(str[4]), int(str[5]))
+	data['move counts'] = [int(str[4]), int(str[5])]
 
 	print('board: ')
 	print(data['board'])
@@ -135,7 +165,11 @@ def draw_legal_moves():
 	global legal_moves
 
 	for move in legal_moves:
-		board_graph.DrawImage(filename="img/pieces_default/move_dot.png", location=(move[0]*100, (move[1]+1)*100))
+		if perspective == 'w':
+			loc = (move[0]*100, (move[1]+1)*100)
+		else:
+			loc = (700 - move[0]*100, 800 - move[1]*100)
+		board_graph.DrawImage(filename="img/" + img_folder + "/move_dot.png", location=loc)
 
 def draw_board():
 	global board_graph
@@ -143,7 +177,7 @@ def draw_board():
 
 	board_graph.erase()
 	# board_graph is necessarily the 800x800 board used in run()
-	board_graph.DrawImage(filename="img/pieces_default/board.png", location=(0, 800))
+	board_graph.DrawImage(filename="img/" + img_folder + "/board.png", location=(0, 800))
 
 	board = curr_data['board']
 	for i in range(0, 8): # ranks, starting from the 8th rank
@@ -155,29 +189,29 @@ def draw_board():
 					locx, locy = board_image_coords(7-j, 7-i)
 
 				if board[i][j] == 'p':
-					board_graph.DrawImage(filename="img/pieces_default/pawn_black.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/pawn_black.png", location=(locx, locy))
 				elif board[i][j] == 'r':
-					board_graph.DrawImage(filename="img/pieces_default/rook_black.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/rook_black.png", location=(locx, locy))
 				elif board[i][j] == 'n':
-					board_graph.DrawImage(filename="img/pieces_default/knight_black.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/knight_black.png", location=(locx, locy))
 				elif board[i][j] == 'b':
-					board_graph.DrawImage(filename="img/pieces_default/bishop_black.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/bishop_black.png", location=(locx, locy))
 				elif board[i][j] == 'k':
-					board_graph.DrawImage(filename="img/pieces_default/king_black.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/king_black.png", location=(locx, locy))
 				elif board[i][j] == 'q':
-					board_graph.DrawImage(filename="img/pieces_default/queen_black.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/queen_black.png", location=(locx, locy))
 				elif board[i][j] == 'P':
-					board_graph.DrawImage(filename="img/pieces_default/pawn_white.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/pawn_white.png", location=(locx, locy))
 				elif board[i][j] == 'R':
-					board_graph.DrawImage(filename="img/pieces_default/rook_white.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/rook_white.png", location=(locx, locy))
 				elif board[i][j] == 'N':
-					board_graph.DrawImage(filename="img/pieces_default/knight_white.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/knight_white.png", location=(locx, locy))
 				elif board[i][j] == 'B':
-					board_graph.DrawImage(filename="img/pieces_default/bishop_white.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/bishop_white.png", location=(locx, locy))
 				elif board[i][j] == 'K':
-					board_graph.DrawImage(filename="img/pieces_default/king_white.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/king_white.png", location=(locx, locy))
 				elif board[i][j] == 'Q':
-					board_graph.DrawImage(filename="img/pieces_default/queen_white.png", location=(locx, locy))
+					board_graph.DrawImage(filename="img/" + img_folder + "/queen_white.png", location=(locx, locy))
 
 def flip_board():
 	global perspective
@@ -187,8 +221,6 @@ def flip_board():
 		perspective = 'w'
 
 	draw_board()
-
-
 
 
 
@@ -216,6 +248,15 @@ def board_mouse_one(event):
 			if abs(y - moving_from[1]) == 2:
 				curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
 				print("En passant is now: ", curr_data['en passant'])
+
+		# Increment the move counts
+		if moving_piece.islower():
+			curr_data['move counts'][1] = curr_data['move counts'][1] + 1
+		if get_piece(x, y) != '' or moving_piece == 'p' or moving_piece == 'P':
+			curr_data['move counts'][0] = 0
+		else:
+			curr_data['move counts'][0] = curr_data['move counts'][0] + 1
+
 
 		# Move the actual piece (if anything is taken, it's overwritten in this process)
 		set_piece(x, y, moving_piece)
@@ -247,6 +288,10 @@ def board_mouse_one(event):
 		# Update whose turn it is
 		curr_data['turn'] = 'b' if curr_data['turn'] == 'w' else 'w'
 
+		ffeenn = get_curr_fen()
+		print(ffeenn)
+		analysis.background_analysis(ffeenn, curr_data['turn'], depth=20)
+
 		legal_moves = ()
 		moving_piece = None
 		moving_from = None
@@ -259,6 +304,10 @@ def board_mouse_one(event):
 			legal_moves = get_legal_moves(x, y)
 			moving_piece = get_piece(x, y)
 			moving_from = (x, y)
+		else:
+			legal_moves = ()
+			moving_piece = None
+			moving_from = None
 
 	draw_board()
 	draw_legal_moves()
