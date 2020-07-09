@@ -14,6 +14,7 @@ board_graph = None
 ##		castling: string containing kqKQ with info on who can castle which way
 ##		en passant: if a pawn was moved 2 spaced last turn, this is the square that that pawn can be en passanted on (in (x, y) form)
 ##		move counts: as per FEN standards
+##      fen: the FEN string of the current position, mostly just stored so that analysis.py can use it
 ## }
 curr_data = None
 
@@ -66,6 +67,7 @@ def get_curr_fen():
 def set_pos_from_fen(FEN):
 	global curr_data
 	curr_data = data_from_fen(FEN)
+	#analysis.background_analysis(FEN, curr_data['turn'])
 	draw_board()
 
 def xy_to_rank_file(x, y):
@@ -290,7 +292,7 @@ def board_mouse_one(event):
 
 		ffeenn = get_curr_fen()
 		print(ffeenn)
-		analysis.background_analysis(ffeenn, curr_data['turn'], depth=20)
+		curr_data['fen'] = get_curr_fen()
 
 		legal_moves = ()
 		moving_piece = None
