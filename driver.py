@@ -50,8 +50,7 @@ def run():
 	board_graph = window.Element('board')
 	window.Finalize()
 
-	butil.Init(board_graph)
-	analysis.Init(bar)
+	butil.Init(board_graph, bar)
 
 	#fen_data = butil.data_from_fen(starting_pos_fen)
 	#butil.draw_from_data(board_graph, fen_data)

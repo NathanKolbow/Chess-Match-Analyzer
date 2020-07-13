@@ -40,6 +40,8 @@ def Init(bar):
 	proc.stdout.read1()
 
 
+
+
 def set_bar_height(y):
 	global analysis_graph
 	global analysis_rect
@@ -72,6 +74,10 @@ def init_background_analysis(curr_data, depth=DEFAULT_DEPTH):
 # turn is 'w' if the NEXT move is white's, 'b' for black
 def progressive_analysis(curr_data, depth):
 	global working_fen
+
+	while curr_data == None:
+		# Waiting for things to start up
+		pass
 
 	while True:
 		working_fen = curr_data['fen']
@@ -110,6 +116,9 @@ def progressive_analysis(curr_data, depth):
 	##        through (probably raise_exception())      ##
 	##        so that you can cancel prev operations,   ##
 	##        unless SF has a built-in way to stop ops  ##
+	##  2. implement shit with condition variables so   ##
+	##     that everything isn't wrecking performance   ##
+	##     sitting in while loops                       ##
 	##													##
 	######################################################
 

@@ -26,7 +26,7 @@ moving_piece = None
 moving_from = None
 
 
-def Init(graph):
+def Init(graph, bar):
 	graph.Widget.bind("<Motion>", board_motion_event)
 	graph.Widget.bind("<Button-1>", board_mouse_one)
 	graph.Widget.bind("<B1-Motion>", board_mouse_one_motion)
@@ -34,9 +34,15 @@ def Init(graph):
 	graph.Widget.bind("<Button-3>", board_mouse_three)
 
 	global board_graph
+	global curr_data
 	board_graph = graph
 
+	analysis.Init(bar)
+	analysis.init_background_analysis(curr_data, depth=18)
+
 def get_curr_fen():
+	global curr_data
+
 	out = ""
 	blank_count = 0
 	for j in reversed(range(0, 8)):
