@@ -52,10 +52,8 @@ def run():
 
 	butil.Init(board_graph, bar)
 
-	#fen_data = butil.data_from_fen(starting_pos_fen)
-	#butil.draw_from_data(board_graph, fen_data)
-	butil.set_pos_from_fen(random_fen)
-	analysis.update_fen(random_fen)
+	butil.set_pos_from_fen(starting_pos_fen)
+	analysis.update_fen(starting_pos_fen)
 
 
 
@@ -64,11 +62,9 @@ def run():
 		global bar_val
 
 		if event == 'Next':
-			pass
+			butil.set_pos_from_fen(random_fen)
 		elif event == 'Back':
-			bar_val = bar_val - 0.5
-			print(bar_val)
-			analysis.move_bar(bar_val)
+			pass
 		elif event == sg.WIN_CLOSED:
 			break
 
