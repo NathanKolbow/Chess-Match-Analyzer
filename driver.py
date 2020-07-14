@@ -55,6 +55,7 @@ def run():
 	#fen_data = butil.data_from_fen(starting_pos_fen)
 	#butil.draw_from_data(board_graph, fen_data)
 	butil.set_pos_from_fen(random_fen)
+	analysis.update_fen(random_fen)
 
 
 

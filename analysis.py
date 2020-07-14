@@ -12,8 +12,6 @@ DEFAULT_DEPTH = 18
 proc = None
 uci_engine_loc = "engines/stockfish11_win_64.exe"
 
-working_fen = None
-
 
 def Init(bar):
 	# Initiate bar
@@ -30,13 +28,11 @@ def Init(bar):
 	global proc
 
 	proc = subprocess.Popen([uci_engine_loc], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-	proc.stdout.peek()
 	proc.stdout.read1()
 
 	proc.stdin.write(b'uci\n')
 	proc.stdin.flush()
 
-	proc.stdout.peek()
 	proc.stdout.read1()
 
 
@@ -46,8 +42,6 @@ def set_bar_height(y):
 	global analysis_graph
 	global analysis_rect
 	global rect_Y
-
-	print("Setting height to: %s" % (y))
 
 	analysis_graph.Widget.coords(analysis_rect, (0, 0, 35, y))
 	rect_Y = y
@@ -63,24 +57,54 @@ def move_bar(analysis):
 	#analysis_rect = analysis_graph.DrawRectangle((0, 800), (35, 5 + 790 * percent), fill_color='gray')
 	#analysis_graph.DrawRectangle((0, 401), (35, 400), fill_color='black', line_color='black')
 
-def init_background_analysis(curr_data, depth=DEFAULT_DEPTH):
+def init_background_analysis(depth=DEFAULT_DEPTH):
 	global analysis_thread
 
-	analysis_thread = threading.Thread(target=progressive_analysis, args=(curr_data, depth,))
+	analysis_thread = threading.Thread(target=_progressive_analysis, args=(depth,))
 	analysis_thread.start()
+
+def close():
+	global alive
+	alive = False
+
+def update_fen(FEN):
+	global working_fen
+	global next_item
+	global turn
+	global wait_condition
+
+	working_fen = FEN
+	turn = working_fen.split(' ')[1]
+	next_item = True
+
+	wait_condition.acquire()
+	wait_condition.notify()
+	wait_condition.release()
 
 
 # Automatically moves the bar currently
 # turn is 'w' if the NEXT move is white's, 'b' for black
-def progressive_analysis(curr_data, depth):
+alive = True
+next_item = False
+working_fen = None
+turn = None
+
+wait_condition = threading.Condition()
+def _progressive_analysis(depth):
 	global working_fen
+	global alive
+	global next_item
+	global wait_condition
 
-	while curr_data == None:
-		# Waiting for things to start up
-		pass
+	print('Entering progressive analysis')
+	while working_fen == None:
+		wait_condition.acquire()
+		wait_condition.wait()
+		print('no FEN received yet')
 
-	while True:
-		working_fen = curr_data['fen']
+	while alive:
+		next_item = False
+		print('Entering main loop')
 
 		send = bytearray(b'position fen ')
 		send.extend(working_fen.encode())
@@ -96,13 +120,38 @@ def progressive_analysis(curr_data, depth):
 		proc.stdin.write(send)
 		proc.stdin.flush()
 
-		while True:
-			ret = str(proc.stdout.read1()).split('\n')
+		searching = True
+		while not next_item and searching:
+			ret = str(proc.stdout.read1()).split('\\n')
 			for item in ret:
-				_parse_and_move(item, curr_data['turn'])
+				if _parse_and_move(item, turn) != None:
+					searching = False
+		
 
-			if working_fen != curr_data['fen']:
-				break
+		proc.stdin.write(b'stop\n')
+		proc.stdin.flush()
+		proc.stdin.write(b'isready\n')
+		proc.stdin.flush()
+
+		found_best = True
+		found_readyok = False
+		if searching == True:
+			found_best = False
+
+		while not found_best or not found_readyok:
+			ret = proc.stdout.read1()
+			if b'readyok' in ret:
+				found_readyok = True
+			if b'bestmove' in ret:
+				found_best = True
+
+		while alive and next_item == False:
+			print('Waiting...')
+			wait_condition.acquire()
+			wait_condition.wait()
+		print('Done waiting.')
+
+		# After this we can wait for next_item with a condition variable
 
 
 	######################################################
@@ -137,9 +186,11 @@ def _parse_and_move(str, turn):
 			space = space + 1
 
 		val = int(str[search+4:space])
-		print("Evaluation (%s): %s" % (turn, val))
+		#print("Evaluation (%s): %s" % (turn, -val/100 if turn == 'w' else val/100))
 		move_bar(-val/100 if turn == 'w' else val/100)
 
 	if 'bestmove' in str:
 		print(str)
 		return str
+
+	return None

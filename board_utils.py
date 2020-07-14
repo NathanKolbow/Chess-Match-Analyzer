@@ -16,7 +16,7 @@ board_graph = None
 ##		move counts: as per FEN standards
 ##      fen: the FEN string of the current position, mostly just stored so that analysis.py can use it
 ## }
-curr_data = None
+curr_data = {}
 
 
 # list of legal moves for the currently selected piece
@@ -25,11 +25,10 @@ legal_moves = ()
 moving_piece = None
 moving_from = None
 
-
 def Init(graph, bar):
 	graph.Widget.bind("<Motion>", board_motion_event)
 	graph.Widget.bind("<Button-1>", board_mouse_one)
-	graph.Widget.bind("<B1-Motion>", board_mouse_one_motion)
+	graph.Widget.bind("<B1-Motion>", board_mouse_one_drag)
 	graph.Widget.bind("<ButtonRelease-1>", board_mouse_one_release)
 	graph.Widget.bind("<Button-3>", board_mouse_three)
 
@@ -38,7 +37,7 @@ def Init(graph, bar):
 	board_graph = graph
 
 	analysis.Init(bar)
-	analysis.init_background_analysis(curr_data, depth=18)
+	analysis.init_background_analysis()
 
 def get_curr_fen():
 	global curr_data
@@ -188,38 +187,51 @@ def draw_board():
 	board_graph.DrawImage(filename="img/" + img_folder + "/board.png", location=(0, 800))
 
 	board = curr_data['board']
+	transparent = (-1, -1) if not dragging else (moving_from[0], moving_from[1])
 	for i in range(0, 8): # ranks, starting from the 8th rank
 		for j in range(0, 8): # files, starting from the a file
+
 			if not board[i][j] == '':
 				if perspective == 'w':
 					locx, locy = board_image_coords(j, i)
 				else:
 					locx, locy = board_image_coords(7-j, 7-i)
 
-				if board[i][j] == 'p':
-					board_graph.DrawImage(filename="img/" + img_folder + "/pawn_black.png", location=(locx, locy))
-				elif board[i][j] == 'r':
-					board_graph.DrawImage(filename="img/" + img_folder + "/rook_black.png", location=(locx, locy))
-				elif board[i][j] == 'n':
-					board_graph.DrawImage(filename="img/" + img_folder + "/knight_black.png", location=(locx, locy))
-				elif board[i][j] == 'b':
-					board_graph.DrawImage(filename="img/" + img_folder + "/bishop_black.png", location=(locx, locy))
-				elif board[i][j] == 'k':
-					board_graph.DrawImage(filename="img/" + img_folder + "/king_black.png", location=(locx, locy))
-				elif board[i][j] == 'q':
-					board_graph.DrawImage(filename="img/" + img_folder + "/queen_black.png", location=(locx, locy))
-				elif board[i][j] == 'P':
-					board_graph.DrawImage(filename="img/" + img_folder + "/pawn_white.png", location=(locx, locy))
-				elif board[i][j] == 'R':
-					board_graph.DrawImage(filename="img/" + img_folder + "/rook_white.png", location=(locx, locy))
-				elif board[i][j] == 'N':
-					board_graph.DrawImage(filename="img/" + img_folder + "/knight_white.png", location=(locx, locy))
-				elif board[i][j] == 'B':
-					board_graph.DrawImage(filename="img/" + img_folder + "/bishop_white.png", location=(locx, locy))
-				elif board[i][j] == 'K':
-					board_graph.DrawImage(filename="img/" + img_folder + "/king_white.png", location=(locx, locy))
-				elif board[i][j] == 'Q':
-					board_graph.DrawImage(filename="img/" + img_folder + "/queen_white.png", location=(locx, locy))
+				if transparent == (j, i):
+					_draw_piece(board[i][j], (locx, locy), False)
+				else:
+					_draw_piece(board[i][j], (locx, locy), True)
+
+
+
+
+def _draw_piece(piece, loc, opaque):
+	global board_graph
+
+	if piece == 'p':
+		board_graph.DrawImage(filename="img/" + img_folder + "/pawn_black" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'r':
+		board_graph.DrawImage(filename="img/" + img_folder + "/rook_black" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'n':
+		board_graph.DrawImage(filename="img/" + img_folder + "/knight_black" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'b':
+		board_graph.DrawImage(filename="img/" + img_folder + "/bishop_black" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'k':
+		board_graph.DrawImage(filename="img/" + img_folder + "/king_black" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'q':
+		board_graph.DrawImage(filename="img/" + img_folder + "/queen_black" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'P':
+		board_graph.DrawImage(filename="img/" + img_folder + "/pawn_white" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'R':
+		board_graph.DrawImage(filename="img/" + img_folder + "/rook_white" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'N':
+		board_graph.DrawImage(filename="img/" + img_folder + "/knight_white" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'B':
+		board_graph.DrawImage(filename="img/" + img_folder + "/bishop_white" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'K':
+		board_graph.DrawImage(filename="img/" + img_folder + "/king_white" + ("" if opaque else "_trans") + ".png", location=loc)
+	elif piece == 'Q':
+		board_graph.DrawImage(filename="img/" + img_folder + "/queen_white" + ("" if opaque else "_trans") + ".png", location=loc)
 
 def flip_board():
 	global perspective
@@ -241,6 +253,14 @@ def board_motion_event(event):
 	last_X = event.x
 	last_Y = event.y
 
+dragging = False
+def board_mouse_one_drag(event):
+	global last_X
+	global last_Y
+
+	last_X = event.x
+	last_Y = event.y
+
 def board_mouse_one(event):
 	x, y = board_image_coords_to_xy(last_X, last_Y)
 	
@@ -248,6 +268,9 @@ def board_mouse_one(event):
 	global moving_piece
 	global curr_data
 	global moving_from
+	global dragging
+
+	dragging = True
 
 	if legal_moves != None and (x, y) in legal_moves:
 		# Update the value for en passant
@@ -255,7 +278,7 @@ def board_mouse_one(event):
 		if moving_piece == 'p' or moving_piece == 'P':
 			if abs(y - moving_from[1]) == 2:
 				curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
-				print("En passant is now: ", curr_data['en passant'])
+				print("En passant is now: ", curr_data['en passant'])	
 
 		# Increment the move counts
 		if moving_piece.islower():
@@ -275,30 +298,32 @@ def board_mouse_one(event):
 				curr_data['castling'] = curr_data['castling'].replace('Q', '')
 			elif 'K' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 0:
 				curr_data['castling'] = curr_data['castling'].replace('K', '')
-		if moving_piece == 'r':
+		elif moving_piece == 'r':
 			if 'q' in curr_data['castling'] and moving_from[0] == 0 and moving_from[1] == 7:
 				curr_data['castling'] = curr_data['castling'].replace('q', '')
 			elif 'k' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 7:
 				curr_data['castling'] = curr_data['castling'].replace('k', '')
 		# Special case for castling
-		if moving_piece == 'k':
-			print("king move")
+		elif moving_piece == 'k':
 			curr_data['castling'] = curr_data['castling'].replace('k', '').replace('q', '')
 			if abs(moving_from[0] - x) == 2:
-				print("castle")
 				if x == 2:
 					set_piece(0, 7, '')
 					set_piece(3, 7, 'r')
 				elif x == 6:
 					set_piece(5, 7, 'r')
 					set_piece(7, 7, '')
+		elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
+			# Auto-queen
+			set_piece(x, y, 'q' if moving_piece == 'p' else 'Q')
 
 		# Update whose turn it is
 		curr_data['turn'] = 'b' if curr_data['turn'] == 'w' else 'w'
 
 		ffeenn = get_curr_fen()
-		print(ffeenn)
+		print('Set curr_data[\'fen\'] to the new FEN: %s.' % (get_curr_fen()))
 		curr_data['fen'] = get_curr_fen()
+		analysis.update_fen(curr_data['fen'])
 
 		legal_moves = ()
 		moving_piece = None
@@ -307,6 +332,7 @@ def board_mouse_one(event):
 		legal_moves = ()
 		moving_piece = None
 		moving_from = None
+		dragging = False
 	else:
 		if not ((curr_data['turn'] == 'b' and get_piece(x, y).isupper()) or (curr_data['turn'] == 'w' and get_piece(x, y).islower())):
 			legal_moves = get_legal_moves(x, y)
@@ -316,6 +342,7 @@ def board_mouse_one(event):
 			legal_moves = ()
 			moving_piece = None
 			moving_from = None
+			dragging = False
 
 	draw_board()
 	draw_legal_moves()
@@ -327,15 +354,10 @@ def board_mouse_three(event):
 	# right-click
 	flip_board()
 
-def board_mouse_one_motion(event):
-	global last_X
-	global last_Y
-
-	last_X = event.x
-	last_Y = event.y
-
 def board_mouse_one_release(event):
-	pass
+	global dragging
+
+	dragging = False
 
 
 def get_legal_moves(x, y):
