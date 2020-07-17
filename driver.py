@@ -50,13 +50,14 @@ def run():
 	board_graph = window.Element('board')
 	window.Finalize()
 
-	butil.Init(board_graph, bar)
+	butil.Init(board_graph, bar, window.TKroot)
 	analysis.Init(window.TKroot)
-	analysis.SetFen(random_fen)
+	analysis.SetFen(starting_pos_fen)
 
-	butil.set_pos_from_fen(random_fen)
+	butil.set_pos_from_fen(starting_pos_fen)
 
 	window.TKroot.bind("<<Analysis-Update>>", butil.AnalysisEvent)
+	window.TKroot.bind("<<Bar-Animation>>", butil._set_bar_height)
 
 	while True:
 		event, values = window.read()

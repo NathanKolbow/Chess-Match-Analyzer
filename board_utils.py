@@ -1,5 +1,7 @@
 import PySimpleGUI as sg
 import analysis
+import threading
+from math import sqrt
 
 img_folder = "pieces_wooden"
 img_dim = 100 # dimension of the piece images, i.e. 100x100
@@ -29,9 +31,15 @@ moving_from = None
 __ANALYSIS_GRAPH__ = None
 __ANALYSIS_RECT__ = None
 __RECT_Y__ = 800
+__RECT_TARGET_Y__ = 800
 __ANALYSIS_TEXT__ = "0.0"
 
-def Init(graph, bar):
+_ROOT = None
+
+def Init(graph, bar, root):
+	global _ROOT
+	_ROOT = root
+
 	graph.Widget.bind("<Motion>", _board_motion_event)
 	graph.Widget.bind("<Button-1>", _board_mouse_one)
 	graph.Widget.bind("<B1-Motion>", _board_mouse_one_drag)
@@ -50,18 +58,50 @@ def Init(graph, bar):
 	__ANALYSIS_GRAPH__ = bar
 	__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, 800), fill_color='white', line_color='black')
 	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, 800), (50, 0), fill_color='gray')
-	__set_bar_height__(400)
+	_set_bar_height(400)
 	__ANALYSIS_GRAPH__.DrawRectangle((0, 401), (50, 400), fill_color='black', line_color='black')
 	__ANALYSIS_TEXT__ = __ANALYSIS_GRAPH__.DrawText("0.0", (17, 10), text_location=sg.TEXT_LOCATION_BOTTOM_LEFT, font='Courier 9')
 
 
-def __set_bar_height__(y):
+_ANIMATING = False
+def _set_bar_height(y):
 	global __ANALYSIS_GRAPH__
 	global __ANALYSIS_RECT__
 	global __RECT_Y__
+	global __RECT_TARGET_Y__
+	global _ANIMATING
+	global _ROOT
 
-	__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_RECT__, (0, 0, 50, y))
-	__RECT_Y__ = y
+	if type(y) == float:
+		__RECT_TARGET_Y__ = y
+
+		if not _ANIMATING:
+			_ANIMATING = True
+			_ROOT.event_generate("<<Bar-Animation>>")
+
+	else:
+		while abs(__RECT_TARGET_Y__ - __RECT_Y__) > 1:
+			diff = __RECT_TARGET_Y__ - __RECT_Y__
+			abs_diff = abs(diff)
+			parity = diff / abs_diff
+
+			if abs_diff >= 200:
+				__RECT_Y__ += parity * 0.7
+			elif abs_diff >= 30:
+				__RECT_Y__ += parity * 0.3
+			else:
+				__RECT_Y__ += parity * 0.075
+
+			__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_RECT__, (0, 0, 50, __RECT_Y__))
+
+			_ROOT.update()
+
+		__RECT_Y__ = __RECT_TARGET_Y__
+		__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_RECT__, (0, 0, 50, __RECT_Y__))
+		_ANIMATING = False
+
+
+
 
 
 def get_curr_fen():
@@ -174,30 +214,37 @@ def _adjust_bar(eval):
 	if type(eval) == str:
 		if '-' in eval:
 			if curr_data['turn'] == 'w':
-				_adjust_text("M" + eval.split('+')[1], (7, 790))
-				__set_bar_height__(0)
+				print('1')
+				_adjust_text("M" + eval.split('+')[1], (7, 20))
+				_set_bar_height(800)
 			else:
-				_adjust_text("M+" + eval.split('-')[1], (7, 20))
-				__set_bar_height__(800)
+				print('2')
+				_adjust_text("M+" + eval.split('-')[1], (7, 790))
+				_set_bar_height(0)
 		else:
 			if int(eval.split('+')[1]) == 0:
 				if curr_data['turn'] == 'w':
+					print('3')
 					_adjust_text('0-1', (7, 20))
 				else:
+					print('4')
 					_adjust_text('1-0', (7, 790))
 			elif curr_data['turn'] == 'w':
+				print('5')
 				_adjust_text("M+" + eval.split('+')[1], (7, 790))
-				__set_bar_height__(0)
+				_set_bar_height(0)
 			else:
+				print('6')
 				_adjust_text("M-" + eval.split('+')[1], (7, 20))
-				__set_bar_height__(800)
+				_set_bar_height(800)
 	else:
-		proportion = _transform(eval/100)
-		__set_bar_height__(800 * proportion)
-		
 		adjusted_eval = eval/100 if curr_data['turn'] == 'w' else -eval/100
 		_adjust_text(str(adjusted_eval), 
 						(7, 20) if adjusted_eval < 0 else (7, 790))
+		
+		proportion = _transform(eval/100)
+		_set_bar_height(800 * proportion)
+		
 
 
 def _transform(eval):
@@ -207,7 +254,7 @@ def _transform(eval):
 	if eval > 17:
 		return 0.95
 	else:
-		return max(min(0.98 * pow(2.72, -((pow(eval - 13.5, 2))/263)), 0.95), 0.05)
+		return max(min(0.98 * pow(2.72, -((pow(eval - 13.5, 2))/263)) + 0.01, 0.95), 0.05)
 
 
 def _data_from_fen(FEN):
@@ -386,53 +433,8 @@ def _board_mouse_one_release(event):
 	global dragging
 
 	if legal_moves != None and (x, y) in legal_moves:
-		# Update the value for en passant
-		curr_data['en passant'] = "-"
-		if moving_piece == 'p' or moving_piece == 'P':
-			if abs(y - moving_from[1]) == 2:
-				curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
+		_make_move(moving_from, (x, y))
 
-		# Increment the move counts
-		if moving_piece.islower():
-			curr_data['move counts'][1] = curr_data['move counts'][1] + 1
-		if _get_piece(x, y) != '' or moving_piece == 'p' or moving_piece == 'P':
-			curr_data['move counts'][0] = 0
-		else:
-			curr_data['move counts'][0] = curr_data['move counts'][0] + 1
-
-		
-		# Move the actual piece (if anything is taken, it's overwritten in this process)
-		_set_piece(x, y, moving_piece)
-		_set_piece(moving_from[0], moving_from[1], '')
-		# Remove castling rights if necessary
-		if moving_piece == 'R':
-			if 'Q' in curr_data['castling'] and moving_from[0] == 0 and moving_from[1] == 0:
-				curr_data['castling'] = curr_data['castling'].replace('Q', '')
-			elif 'K' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 0:
-				curr_data['castling'] = curr_data['castling'].replace('K', '')
-		elif moving_piece == 'r':
-			if 'q' in curr_data['castling'] and moving_from[0] == 0 and moving_from[1] == 7:
-				curr_data['castling'] = curr_data['castling'].replace('q', '')
-			elif 'k' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 7:
-				curr_data['castling'] = curr_data['castling'].replace('k', '')
-		# Special case for castling
-		elif moving_piece == 'k':
-			curr_data['castling'] = curr_data['castling'].replace('k', '').replace('q', '')
-			if abs(moving_from[0] - x) == 2:
-				if x == 2:
-					_set_piece(0, 7, '')
-					_set_piece(3, 7, 'r')
-				elif x == 6:
-					_set_piece(5, 7, 'r')
-					_set_piece(7, 7, '')
-		elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
-			# Auto-queen
-			_set_piece(x, y, 'q' if moving_piece == 'p' else 'Q')
-
-		# Update whose turn it is
-		curr_data['turn'] = 'b' if curr_data['turn'] == 'w' else 'w'
-
-		ffeenn = get_curr_fen()
 		curr_data['fen'] = get_curr_fen()
 		analysis.SetFen(curr_data['fen'])
 
@@ -446,6 +448,58 @@ def _board_mouse_one_release(event):
 
 	dragging = False
 	_draw_board()
+
+
+def _make_move(moving_from, moving_to):
+	x = moving_to[0]
+	y = moving_to[1]
+
+	# Update the value for en passant
+	curr_data['en passant'] = "-"
+	if moving_piece == 'p' or moving_piece == 'P':
+		if abs(y - moving_from[1]) == 2:
+			curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
+
+	# Increment the move counts
+	if moving_piece.islower():
+		curr_data['move counts'][1] = curr_data['move counts'][1] + 1
+	if _get_piece(x, y) != '' or moving_piece == 'p' or moving_piece == 'P':
+		curr_data['move counts'][0] = 0
+	else:
+		curr_data['move counts'][0] = curr_data['move counts'][0] + 1
+
+	
+	# Move the actual piece (if anything is taken, it's overwritten in this process)
+	_set_piece(x, y, moving_piece)
+	_set_piece(moving_from[0], moving_from[1], '')
+	# Remove castling rights if necessary
+	if moving_piece == 'R':
+		if 'Q' in curr_data['castling'] and moving_from[0] == 0 and moving_from[1] == 0:
+			curr_data['castling'] = curr_data['castling'].replace('Q', '')
+		elif 'K' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 0:
+			curr_data['castling'] = curr_data['castling'].replace('K', '')
+	elif moving_piece == 'r':
+		if 'q' in curr_data['castling'] and moving_from[0] == 0 and moving_from[1] == 7:
+			curr_data['castling'] = curr_data['castling'].replace('q', '')
+		elif 'k' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 7:
+			curr_data['castling'] = curr_data['castling'].replace('k', '')
+	# Special case for castling
+	elif moving_piece == 'k':
+		curr_data['castling'] = curr_data['castling'].replace('k', '').replace('q', '')
+		if abs(moving_from[0] - x) == 2:
+			if x == 2:
+				_set_piece(0, 7, '')
+				_set_piece(3, 7, 'r')
+			elif x == 6:
+				_set_piece(5, 7, 'r')
+				_set_piece(7, 7, '')
+	elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
+		# Auto-queen
+		_set_piece(x, y, 'q' if moving_piece == 'p' else 'Q')
+
+	# Update whose turn it is
+	curr_data['turn'] = 'b' if curr_data['turn'] == 'w' else 'w'
+
 
 
 def _get_legal_moves(x, y):
