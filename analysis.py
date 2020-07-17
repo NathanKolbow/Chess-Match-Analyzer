@@ -1,196 +1,190 @@
-from math import exp
+"""
+
+    NEW ANALYSIS SETUP:
+        * Initialize with an Init() function
+        * One function to update the FEN that is being analyzed
+        * One function for any importer to obtain the current analysis of the position
+        * Close everything with Close()
+    The above is the ONLY outside interaction that importers have with this module
+
+"""
+
 import threading
 import subprocess
+import sys
 
-analysis_graph = None
-analysis_rect = None
-rect_Y = 800
+_READ_THREAD = None
+_WRITE_THREAD = None
+DEPTH = 18
+CURRENT_ANALYSIS = 0
+_ALIVE = True
 
-analysis_thread = None
-DEFAULT_DEPTH = 18
 
-proc = None
+_PROC = None
 uci_engine_loc = "engines/stockfish11_win_64.exe"
 
+def Init():
+    global analysis_thread
+    global _PROC
 
-def Init(bar):
-	# Initiate bar
-	global analysis_graph
-	global analysis_rect
+    _PROC = subprocess.Popen([uci_engine_loc], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    _READ_THREAD = threading.Thread(target=_reading_thread_run, args=())
+    _WRITE_THREAD = threading.Thread(target=_writing_thread_run, args=())
 
-	analysis_graph = bar
-	analysis_graph.DrawRectangle((0, 0), (35, 800), fill_color='white', line_color='black')
-	analysis_rect = analysis_graph.DrawRectangle((0, 800), (35, 0), fill_color='gray')
-	set_bar_height(400)
-	analysis_graph.DrawRectangle((0, 401), (35, 400), fill_color='black', line_color='black')
-
-	# Initiate engine
-	global proc
-
-	proc = subprocess.Popen([uci_engine_loc], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-	proc.stdout.read1()
-
-	proc.stdin.write(b'uci\n')
-	proc.stdin.flush()
-
-	proc.stdout.read1()
+    _READ_THREAD.start()
+    _WRITE_THREAD.start()
 
 
+def Close():
+    global _PROC
+    global _READ_THREAD
+    global _WRITE_THREAD
+    global _ANALYZING
+    global _NEW_FEN_BOOL
+    global _ALIVE
+
+    _write('quit\n')
+
+    _ALIVE = False
+    _ANALYZING = False
+    _NEW_FEN_BOOL = False
+    _PROC.terminate()
+
+    _WAITING_FOR_UPDATE_READ.acquire()
+    _WAITING_FOR_UPDATE_READ.notify()
+    _WAITING_FOR_UPDATE_READ.release()
+
+    _WAITING_FOR_UPDATE_WRITE.acquire()
+    _WAITING_FOR_UPDATE_WRITE.notify()
+    _WAITING_FOR_UPDATE_WRITE.release()
 
 
-def set_bar_height(y):
-	global analysis_graph
-	global analysis_rect
-	global rect_Y
+_WAITING_FOR_UPDATE_READ = threading.Condition()
+_WAITING_FOR_UPDATE_WRITE = threading.Condition()
+_NEW_FEN_BOOL = False
+_PRIMED_FEN = ""
+_WRITING_FEN = ""
+_READING_FEN = ""
+_CURR_EVAL = 0
+_CURR_BEST_MOVE = ""
+_ANALYZING = False
+def _writing_thread_run():
+    global _PROC
+    global _WAITING_FOR_UPDATE_WRITE
+    global _PRIMED_FEN
+    global _WRITING_FEN
+    global _ANALYZING
+    global _NEW_FEN_BOOL
 
-	analysis_graph.Widget.coords(analysis_rect, (0, 0, 35, y))
-	rect_Y = y
+    _write('uci\n')
 
+    while _ALIVE:
+        while not _NEW_FEN_BOOL:
+            _WAITING_FOR_UPDATE_WRITE.acquire()
+            if _ALIVE == False:
+                _WAITING_FOR_UPDATE_WRITE.release()
+                sys.exit(0)
+            
+            _WAITING_FOR_UPDATE_WRITE.wait()
 
-# Takes the number analysis (e.g. -100 to 100) and moves the bar accordingly using a sigmoid transformation
-def move_bar(analysis):
-	percent = 1 / (1 + exp(-analysis/2))
+        _WRITING_FEN = _PRIMED_FEN
 
-	set_bar_height(5 + 790 * percent)
-	#analysis_graph.erase()
-	#analysis_graph.DrawRectangle((0, 0), (35, 800), fill_color='white', line_color='black')
-	#analysis_rect = analysis_graph.DrawRectangle((0, 800), (35, 5 + 790 * percent), fill_color='gray')
-	#analysis_graph.DrawRectangle((0, 401), (35, 400), fill_color='black', line_color='black')
+        # We have a new FEN now
+        _write('stop\n')
+        _WRITING_FEN = _PRIMED_FEN
+        _NEW_FEN_BOOL = False
+        _ANALYZING = True
+        _write('position fen ' + _WRITING_FEN + '\n')
+        _write('go depth ' + str(DEPTH) + '\n')
 
-def init_background_analysis(depth=DEFAULT_DEPTH):
-	global analysis_thread
+        _WAITING_FOR_UPDATE_READ.acquire()
+        _WAITING_FOR_UPDATE_READ.notify()
+        _WAITING_FOR_UPDATE_READ.release()
 
-	analysis_thread = threading.Thread(target=_progressive_analysis, args=(depth,))
-	analysis_thread.start()
-
-def close():
-	global alive
-	alive = False
-
-def update_fen(FEN):
-	global working_fen
-	global next_item
-	global turn
-	global wait_condition
-
-	working_fen = FEN
-	turn = working_fen.split(' ')[1]
-	next_item = True
-
-	wait_condition.acquire()
-	wait_condition.notify()
-	wait_condition.release()
-
-
-# Automatically moves the bar currently
-# turn is 'w' if the NEXT move is white's, 'b' for black
-alive = True
-next_item = False
-working_fen = None
-turn = None
-
-wait_condition = threading.Condition()
-def _progressive_analysis(depth):
-	global working_fen
-	global alive
-	global next_item
-	global wait_condition
-
-	print('Entering progressive analysis')
-	while working_fen == None:
-		wait_condition.acquire()
-		wait_condition.wait()
-		print('no FEN received yet')
-
-	while alive:
-		next_item = False
-		print('Entering main loop')
-
-		send = bytearray(b'position fen ')
-		send.extend(working_fen.encode())
-		send.extend('\n'.encode())
-
-		proc.stdin.write(send)
-		proc.stdin.flush()
-
-		send = bytearray(b'go depth ')
-		send.extend(str(depth).encode())
-		send.extend('\n'.encode())
-
-		proc.stdin.write(send)
-		proc.stdin.flush()
-
-		searching = True
-		while not next_item and searching:
-			ret = str(proc.stdout.read1()).split('\\n')
-			for item in ret:
-				if _parse_and_move(item, turn) != None:
-					searching = False
-		
-
-		proc.stdin.write(b'stop\n')
-		proc.stdin.flush()
-		proc.stdin.write(b'isready\n')
-		proc.stdin.flush()
-
-		found_best = True
-		found_readyok = False
-		if searching == True:
-			found_best = False
-
-		while not found_best or not found_readyok:
-			ret = proc.stdout.read1()
-			if b'readyok' in ret:
-				found_readyok = True
-			if b'bestmove' in ret:
-				found_best = True
-
-		while alive and next_item == False:
-			print('Waiting...')
-			wait_condition.acquire()
-			wait_condition.wait()
-		print('Done waiting.')
-
-		# After this we can wait for next_item with a condition variable
+    sys.exit(0)
 
 
-	######################################################
-	##													##
-	##                      TODO						##
-	##													##
-	##	1. get the background analyses working so that  ##
-	##	   it's just constantly going and updating as	##
-	##     moves are made								##
-	##     a) Figure out how to kill a thread midway    ##
-	##        through (probably raise_exception())      ##
-	##        so that you can cancel prev operations,   ##
-	##        unless SF has a built-in way to stop ops  ##
-	##  2. implement shit with condition variables so   ##
-	##     that everything isn't wrecking performance   ##
-	##     sitting in while loops                       ##
-	##													##
-	######################################################
+def _reading_thread_run():
+    global _PROC
+    global _READING_FEN
+    global _PRIMED_FEN
+    global _ANALYZING
+    global _CURR_EVAL
+    global _CURR_BEST_MOVE
+
+    while _ALIVE:
+        while not _ANALYZING:
+            _WAITING_FOR_UPDATE_READ.acquire()
+            if _ALIVE == False:
+                _WAITING_FOR_UPDATE_READ.release()
+                sys.exit(0)
+
+            _WAITING_FOR_UPDATE_READ.wait()
+
+        _READING_FEN = _PRIMED_FEN
+
+        # Get the line output and change it from bytes to a legible string
+        out = str(_PROC.stdout.read1())[2:-1].replace('\\r', '').split('\\n')
+
+        for item in out:
+            # Split the output so it can be easily parsed
+            split = item.split(' ')
+
+            if split[0] == "" and _PROC.poll() == 0:
+                # Output isn't being read anymore and the main proc is closed
+                return
+            elif split[0] == "uciok":
+                pass
+            elif split[0] == "info":
+                _index = 1
+
+                # Parse the line
+                while _index < len(split):
+                    if split[_index] == "score":
+                        if split[_index+1] == "cp":
+                            _CURR_EVAL = int(split[_index+2])
+                            _index += 3
+                        elif split[_index+1] == "mate":
+                            _CURR_EVAL = 'MATE+' + split[_index+2]
+                            _index += 3
+                    elif split[_index] == "pv":
+                        _CURR_BEST_MOVE = split[_index+1]
+                        _index += 2
+                    elif split[_index] == "bestmove":
+                        _CURR_BEST_MOVE = split[_index+1]
+                        _index += 2
+                    else:
+                        _index += 1
+            elif split[0] == "bestmove":
+                _CURR_BEST_MOVE = split[1]
+                _ANALYZING = False
+
+    sys.exit(0)
 
 
+def CurrentAnalysis():
+    global _CURR_EVAL
+    global _CURR_BEST_MOVE
+    global _READING_FEN
 
-# Parses analysis and moves the analysis bar
-def _parse_and_move(str, turn):
-	if ' cp ' in str:
-		search = 0
+    return _CURR_EVAL, _CURR_BEST_MOVE, _READING_FEN
 
-		while str[search:search+4] != ' cp ':
-			search = search + 1
 
-		space = search+4
-		while str[space] != ' ':
-			space = space + 1
+def SetFen(FEN):
+    global _NEW_FEN_BOOL
+    global _WAITING_FOR_UPDATE_WRITE
+    global _PRIMED_FEN
 
-		val = int(str[search+4:space])
-		#print("Evaluation (%s): %s" % (turn, -val/100 if turn == 'w' else val/100))
-		move_bar(-val/100 if turn == 'w' else val/100)
+    _PRIMED_FEN = FEN
+    _NEW_FEN_BOOL = True
+    _WAITING_FOR_UPDATE_WRITE.acquire()
+    _WAITING_FOR_UPDATE_WRITE.notify()
+    _WAITING_FOR_UPDATE_WRITE.release()
 
-	if 'bestmove' in str:
-		print(str)
-		return str
 
-	return None
+def _write(str):
+    global _PROC
+
+    print('WRITING: %s' % (str))
+    _PROC.stdin.write(str.encode())
+    _PROC.stdin.flush()
