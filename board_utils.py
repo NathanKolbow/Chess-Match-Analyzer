@@ -26,19 +26,43 @@ legal_moves = ()
 moving_piece = None
 moving_from = None
 
+__ANALYSIS_GRAPH__ = None
+__ANALYSIS_RECT__ = None
+__RECT_Y__ = 800
+__ANALYSIS_TEXT__ = "0.0"
+
 def Init(graph, bar):
 	graph.Widget.bind("<Motion>", _board_motion_event)
 	graph.Widget.bind("<Button-1>", _board_mouse_one)
 	graph.Widget.bind("<B1-Motion>", _board_mouse_one_drag)
-	graph.Widget.bind("<ButtonRelease-1>", __board_mouse_one_release)
+	graph.Widget.bind("<ButtonRelease-1>", _board_mouse_one_release)
 	graph.Widget.bind("<Button-3>", _board_mouse_three)
 
 	global board_graph
 	global curr_data
 	board_graph = graph
 
-	analysis.Init(bar)
-	analysis.init_background_analysis()
+
+	global __ANALYSIS_GRAPH__
+	global __ANALYSIS_RECT__
+	global __ANALYSIS_TEXT__
+
+	__ANALYSIS_GRAPH__ = bar
+	__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, 800), fill_color='white', line_color='black')
+	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, 800), (50, 0), fill_color='gray')
+	__set_bar_height__(400)
+	__ANALYSIS_GRAPH__.DrawRectangle((0, 401), (50, 400), fill_color='black', line_color='black')
+	__ANALYSIS_TEXT__ = __ANALYSIS_GRAPH__.DrawText("0.0", (17, 10), text_location=sg.TEXT_LOCATION_BOTTOM_LEFT, font='Courier 9')
+
+
+def __set_bar_height__(y):
+	global __ANALYSIS_GRAPH__
+	global __ANALYSIS_RECT__
+	global __RECT_Y__
+
+	__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_RECT__, (0, 0, 50, y))
+	__RECT_Y__ = y
+
 
 def get_curr_fen():
 	global curr_data
@@ -73,7 +97,6 @@ def get_curr_fen():
 def set_pos_from_fen(FEN):
 	global curr_data
 	curr_data = _data_from_fen(FEN)
-	#analysis.background_analysis(FEN, curr_data['turn'])
 	_draw_board()
 
 def _xy_to_rank_file(x, y):
@@ -130,6 +153,63 @@ def _board_image_coords(row, column):
 	# 0-indexed
 	return (row * 100, 100 + column * 100)
 
+def AnalysisEvent(event):
+	eval, best_move, fen = analysis.CurrentAnalysis()
+
+	if fen != curr_data['fen']:
+		# possible edge case due to multithreading
+		return
+	
+	_adjust_bar(eval)
+
+
+def _adjust_text(string, loc): 
+	__ANALYSIS_GRAPH__.Widget.itemconfig(__ANALYSIS_TEXT__, text=string)
+	__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_TEXT__, loc)
+
+
+def _adjust_bar(eval):
+	""" TODO: Check to make sure the settings for mates are correct (they probably aren't) """
+
+	if type(eval) == str:
+		if '-' in eval:
+			if curr_data['turn'] == 'w':
+				_adjust_text("M" + eval.split('+')[1], (7, 790))
+				__set_bar_height__(0)
+			else:
+				_adjust_text("M+" + eval.split('-')[1], (7, 20))
+				__set_bar_height__(800)
+		else:
+			if int(eval.split('+')[1]) == 0:
+				if curr_data['turn'] == 'w':
+					_adjust_text('0-1', (7, 20))
+				else:
+					_adjust_text('1-0', (7, 790))
+			elif curr_data['turn'] == 'w':
+				_adjust_text("M+" + eval.split('+')[1], (7, 790))
+				__set_bar_height__(0)
+			else:
+				_adjust_text("M-" + eval.split('+')[1], (7, 20))
+				__set_bar_height__(800)
+	else:
+		proportion = _transform(eval/100)
+		__set_bar_height__(800 * proportion)
+		
+		adjusted_eval = eval/100 if curr_data['turn'] == 'w' else -eval/100
+		_adjust_text(str(adjusted_eval), 
+						(7, 20) if adjusted_eval < 0 else (7, 790))
+
+
+def _transform(eval):
+	if curr_data['turn'] == 'w':
+		eval = -eval
+
+	if eval > 17:
+		return 0.95
+	else:
+		return max(min(0.98 * pow(2.72, -((pow(eval - 13.5, 2))/263)), 0.95), 0.05)
+
+
 def _data_from_fen(FEN):
 	str = FEN.split(' ')
 
@@ -153,9 +233,8 @@ def _data_from_fen(FEN):
 	data['castling'] = str[2]
 	data['en passant'] = _rank_file_to_xy(str[3])
 	data['move counts'] = [int(str[4]), int(str[5])]
+	data['fen'] = FEN
 
-	print('board: ')
-	print(data['board'])
 	return data
 
 
@@ -260,7 +339,8 @@ def _board_mouse_one_drag(event):
 	global last_X
 	global last_Y
 
-	board_graph.Widget.coords(dragging_image, (last_X - (img_dim / 2), last_Y - (img_dim / 2)))
+	if dragging:
+		board_graph.Widget.coords(dragging_image, (last_X - (img_dim / 2), last_Y - (img_dim / 2)))
 
 	last_X = event.x
 	last_Y = event.y
@@ -296,9 +376,8 @@ def _board_mouse_three(event):
 	# right-click
 	_flip_board()
 
-def __board_mouse_one_release(event):
+def _board_mouse_one_release(event):
 	x, y = _board_image_coords_to_xy(last_X, last_Y)
-	print('Released on (%s, %s)' % (x, y))
 
 	global legal_moves
 	global moving_piece
@@ -312,7 +391,6 @@ def __board_mouse_one_release(event):
 		if moving_piece == 'p' or moving_piece == 'P':
 			if abs(y - moving_from[1]) == 2:
 				curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
-				print("En passant is now: ", curr_data['en passant'])	
 
 		# Increment the move counts
 		if moving_piece.islower():
@@ -322,7 +400,7 @@ def __board_mouse_one_release(event):
 		else:
 			curr_data['move counts'][0] = curr_data['move counts'][0] + 1
 
-
+		
 		# Move the actual piece (if anything is taken, it's overwritten in this process)
 		_set_piece(x, y, moving_piece)
 		_set_piece(moving_from[0], moving_from[1], '')
@@ -355,9 +433,8 @@ def __board_mouse_one_release(event):
 		curr_data['turn'] = 'b' if curr_data['turn'] == 'w' else 'w'
 
 		ffeenn = get_curr_fen()
-		print('Set curr_data[\'fen\'] to the new FEN: %s.' % (get_curr_fen()))
 		curr_data['fen'] = get_curr_fen()
-		analysis.update_fen(curr_data['fen'])
+		analysis.SetFen(curr_data['fen'])
 
 		legal_moves = ()
 		moving_piece = None

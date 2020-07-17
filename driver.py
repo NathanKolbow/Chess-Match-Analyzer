@@ -22,14 +22,14 @@ def run():
 			)
 		]
 	]
-	printout = [
-		[sg.Output(size=(100,20))],
-	]
+#	printout = [
+#		[sg.Output(size=(100,20))],
+#	]
 	analysis_bar = [
 		[
-			sg.Graph(canvas_size=(35, 800),
+			sg.Graph(canvas_size=(50, 800),
 				graph_bottom_left=(0,0),
-				graph_top_right=(35,800),
+				graph_top_right=(50,800),
 				key="analysis_bar"
 			)
 		]
@@ -38,9 +38,9 @@ def run():
 	layout = [
 		[sg.Column(analysis_bar),
 		sg.VSeparator(),
-		sg.Column(board),
-		sg.VSeparator(),
-		sg.Column(printout)],
+		sg.Column(board)],
+#		sg.VSeparator(),
+#		sg.Column(printout)],
 		[sg.Button('', key='Back', image_data=button_left_base64),
 		sg.Button('', key='Next', image_data=button_right_base64)],
 	]
@@ -51,24 +51,25 @@ def run():
 	window.Finalize()
 
 	butil.Init(board_graph, bar)
+	analysis.Init(window.TKroot)
+	analysis.SetFen(random_fen)
 
-	butil.set_pos_from_fen(starting_pos_fen)
-	analysis.update_fen(starting_pos_fen)
+	butil.set_pos_from_fen(random_fen)
 
-
+	window.TKroot.bind("<<Analysis-Update>>", butil.AnalysisEvent)
 
 	while True:
 		event, values = window.read()
-		global bar_val
+		print('Event: %s' % (event))
 
 		if event == 'Next':
-			butil.set_pos_from_fen(random_fen)
+			butil.set_pos_from_fen(starting_pos_fen)
 		elif event == 'Back':
 			pass
 		elif event == sg.WIN_CLOSED:
 			break
 
-	analysis.close()
+	analysis.Close()
 	window.close()
 
 if __name__ == '__main__':
