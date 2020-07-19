@@ -421,7 +421,8 @@ def _layer_dragged_piece(piece):
 
 def _board_mouse_three(event):
 	# right-click
-	_flip_board()
+	#_flip_board()
+	pass
 
 def _board_mouse_one_release(event):
 	x, y = _board_image_coords_to_xy(last_X, last_Y)
@@ -458,7 +459,6 @@ def _make_move(moving_from, moving_to):
 	curr_data['en passant'] = "-"
 	if moving_piece == 'p' or moving_piece == 'P':
 		if abs(y - moving_from[1]) == 2:
-			print("Setting en passant")
 			curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
 		elif moving_from[0] - x != 0:
 			if moving_piece == 'p':
