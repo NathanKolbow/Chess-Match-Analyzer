@@ -458,7 +458,13 @@ def _make_move(moving_from, moving_to):
 	curr_data['en passant'] = "-"
 	if moving_piece == 'p' or moving_piece == 'P':
 		if abs(y - moving_from[1]) == 2:
+			print("Setting en passant")
 			curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
+		elif moving_from[0] - x != 0:
+			if moving_piece == 'p':
+				_set_piece(x, y+1, '')
+			else:
+				_set_piece(x, y-1, '')
 
 	# Increment the move counts
 	if moving_piece.islower():
@@ -490,9 +496,18 @@ def _make_move(moving_from, moving_to):
 			if x == 2:
 				_set_piece(0, 7, '')
 				_set_piece(3, 7, 'r')
-			elif x == 6:
-				_set_piece(5, 7, 'r')
+			else:
 				_set_piece(7, 7, '')
+				_set_piece(5, 7, 'r')
+	elif moving_piece == 'K':
+		curr_data['castling'] = curr_data['castling'].replace('K', '').replace('Q', '')
+		if abs(moving_from[0] - x) == 2:
+			if x == 2:
+				_set_piece(0, 0, '')
+				_set_piece(3, 0, 'R')
+			else:
+				_set_piece(7, 0, '')
+				_set_piece(5, 0, 'R')
 	elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
 		# Auto-queen
 		_set_piece(x, y, 'q' if moving_piece == 'p' else 'Q')

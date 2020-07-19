@@ -1,3 +1,11 @@
+import sys
+
+if sys.version_info[0] < 3 or (sys.version_info[0] == 3 and sys.version_info[1] < 8):
+	print("Python version 3.8 or later required.")
+	sys.exit(1)
+
+
+
 import PySimpleGUI as sg
 import board_utils as butil
 import analysis
@@ -61,8 +69,7 @@ def run():
 
 	while True:
 		event, values = window.read()
-		print('Event: %s' % (event))
-
+		
 		if event == 'Next':
 			butil.set_pos_from_fen(starting_pos_fen)
 		elif event == 'Back':

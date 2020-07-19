@@ -137,7 +137,7 @@ def _reading_thread_run():
         # Get the line output and change it from bytes to a legible string
         while _WRITTEN_FEN_COUNT != _READ_FEN_COUNT:
             _READING_FEN = _PRIMED_FEN
-            out = str(_PROC.stdout.read1())[2:-1].replace('\\r', '').split('\\n')
+            out = str(_PROC.stdout.read1(-1))[2:-1].replace('\\r', '').split('\\n')
 
             for item in out:
                 # Split the output so it can be easily parsed
