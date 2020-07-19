@@ -4,15 +4,15 @@ import analysis
 import threading
 from math import sqrt
 
-img_folder = "pieces_wooden"
+_IMG_FOLDER = "pieces_wooden"
 _IMG_DIM = -1 # dimension of the piece images, i.e. 100x100
 
-perspective = 'w'
-board_graph = None
+_PERSPECTIVE = 'w'
+_BOARD_GRAPH = None
 
-# curr_data contains ALL of the information necessary to the current position on the board
-# i.e. curr_data is roughly equivalent to an FEN, NOT a PGN
-## curr_data {
+# _CURR_DATA contains ALL of the information necessary to the current position on the board
+# i.e. _CURR_DATA is roughly equivalent to an FEN, NOT a PGN
+## _CURR_DATA {
 ## 		board: 2d array of the current board layout
 ##		turn: 'w' or 'b' depending on whose turn it is
 ##		castling: string containing kqKQ with info on who can castle which way
@@ -20,14 +20,14 @@ board_graph = None
 ##		move counts: as per FEN standards
 ##      fen: the FEN string of the current position, mostly just stored so that analysis.py can use it
 ## }
-curr_data = {}
+_CURR_DATA = {}
 
 
 # list of legal moves for the currently selected piece
-legal_moves = ()
+_LEGAL_MOVES = ()
 # current piece being moved
-moving_piece = None
-moving_from = None
+_MOVING_PIECE = None
+_MOVING_FROM = None
 
 __ANALYSIS_GRAPH__ = None
 __ANALYSIS_RECT__ = None
@@ -48,9 +48,9 @@ def Init(graph, bar, root, size):
 	graph.Widget.bind("<ButtonRelease-1>", _board_mouse_one_release)
 	graph.Widget.bind("<Button-3>", _board_mouse_three)
 
-	global board_graph
-	global curr_data
-	board_graph = graph
+	global _BOARD_GRAPH
+	global _CURR_DATA
+	_BOARD_GRAPH = graph
 
 
 	global __ANALYSIS_GRAPH__
@@ -65,17 +65,18 @@ def Init(graph, bar, root, size):
 	_SIZE = size
 	_IMG_DIM = _SIZE / 8
 
-
 	__ANALYSIS_GRAPH__ = bar
 	__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, size), fill_color='white', line_color='black')
 	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, size), (50, 0), fill_color='gray')
 	__ANALYSIS_GRAPH__.DrawRectangle((0, size/2+1), (50, size/2), fill_color='black', line_color='black')
 	__ANALYSIS_TEXT__ = __ANALYSIS_GRAPH__.DrawText("0.0", (17, 10), text_location=sg.TEXT_LOCATION_BOTTOM_LEFT, font='Courier 9')
 
+	_ROOT.bind("<<Analysis-Update>>", AnalysisEvent)
+	_ROOT.bind("<<Bar-Animation>>", _set_bar_height)
+
 
 _ANIMATING = False
 def _set_bar_height(y):
-	print("y: %s" % (y))
 	global __ANALYSIS_GRAPH__
 	global __ANALYSIS_RECT__
 	global __RECT_Y__
@@ -118,14 +119,11 @@ def _set_bar_height(y):
 		pass
 
 
-	print("End of func, _r_y_: %s" % (__RECT_Y__))
 
 
 
-
-
-def get_curr_fen():
-	global curr_data
+def _get_curr_fen():
+	global _CURR_DATA
 
 	out = ""
 	blank_count = 0
@@ -145,18 +143,18 @@ def get_curr_fen():
 		if j != 0:
 			out = out + "/"
 
-	out = out + " " + curr_data['turn'] + " " + curr_data['castling'] + " "
-	if curr_data['en passant'] == '-':
+	out = out + " " + _CURR_DATA['turn'] + " " + _CURR_DATA['castling'] + " "
+	if _CURR_DATA['en passant'] == '-':
 		out = out + "- "
 	else:
-		out = out + _xy_to_rank_file(curr_data['en passant'][0], curr_data['en passant'][1]) + " "
+		out = out + _xy_to_rank_file(_CURR_DATA['en passant'][0], _CURR_DATA['en passant'][1]) + " "
 
-	out = out + str(curr_data['move counts'][0]) + " " + str(curr_data['move counts'][1])
+	out = out + str(_CURR_DATA['move counts'][0]) + " " + str(_CURR_DATA['move counts'][1])
 	return out
 
-def set_pos_from_fen(FEN):
-	global curr_data
-	curr_data = _data_from_fen(FEN)
+def SetPosFromFEN(FEN):
+	global _CURR_DATA
+	_CURR_DATA = _data_from_fen(FEN)
 	_draw_board()
 
 def _xy_to_rank_file(x, y):
@@ -204,7 +202,7 @@ def _rank_file_to_xy(rankfile):
 def _board_image_coords_to_xy(x, y):
 	y = _SIZE-y
 	# 0-indexed
-	if perspective == 'w':
+	if _PERSPECTIVE == 'w':
 		return int(x // (_SIZE/8)), int(y // (_SIZE/8))
 	else:
 		return int(7 - x // (_SIZE/8)), int(7 - y // (_SIZE/8))
@@ -216,7 +214,7 @@ def _board_image_coords(row, column):
 def AnalysisEvent(event):
 	eval, best_move, fen = analysis.CurrentAnalysis()
 
-	if fen != curr_data['fen']:
+	if fen != _CURR_DATA['fen']:
 		# possible edge case due to multithreading
 		return
 	
@@ -234,7 +232,7 @@ def _adjust_bar(eval):
 
 	if type(eval) == str:
 		if '-' in eval:
-			if curr_data['turn'] == 'w':
+			if _CURR_DATA['turn'] == 'w':
 				print('1')
 				_adjust_text("M" + eval.split('+')[1], (7, 20))
 				_set_bar_height(_SIZE)
@@ -244,7 +242,7 @@ def _adjust_bar(eval):
 				_set_bar_height(0)
 		else:
 			if int(eval.split('+')[1]) == 0:
-				if curr_data['turn'] == 'w':
+				if _CURR_DATA['turn'] == 'w':
 					print('3')
 					_adjust_text('0-1', (7, 20))
 					_set_bar_height(0)
@@ -252,7 +250,7 @@ def _adjust_bar(eval):
 					print('4')
 					_adjust_text('1-0', (7, 790))
 					_set_bar_height(_SIZE)
-			elif curr_data['turn'] == 'w':
+			elif _CURR_DATA['turn'] == 'w':
 				print('5')
 				_adjust_text("M+" + eval.split('+')[1], (7, 790))
 				_set_bar_height(0)
@@ -261,7 +259,7 @@ def _adjust_bar(eval):
 				_adjust_text("M-" + eval.split('+')[1], (7, 20))
 				_set_bar_height(_SIZE)
 	else:
-		adjusted_eval = eval/100 if curr_data['turn'] == 'w' else -eval/100
+		adjusted_eval = eval/100 if _CURR_DATA['turn'] == 'w' else -eval/100
 		_adjust_text(str(adjusted_eval), 
 						(7, 20) if adjusted_eval < 0 else (7, 790))
 		
@@ -271,7 +269,7 @@ def _adjust_bar(eval):
 
 
 def _transform(eval):
-	if curr_data['turn'] == 'w':
+	if _CURR_DATA['turn'] == 'w':
 		eval = -eval
 
 	if eval > 17:
@@ -309,40 +307,40 @@ def _data_from_fen(FEN):
 
 
 def _set_piece(x, y, piece):
-	global curr_data
-	curr_data['board'][y][x] = piece
+	global _CURR_DATA
+	_CURR_DATA['board'][y][x] = piece
 
 def _get_piece(x, y):
-	global curr_data
-	return curr_data['board'][y][x]
+	global _CURR_DATA
+	return _CURR_DATA['board'][y][x]
 
 
 def _layer_legal_moves():
-	global board_graph
-	global legal_moves
+	global _BOARD_GRAPH
+	global _LEGAL_MOVES
 
-	for move in legal_moves:
-		if perspective == 'w':
+	for move in _LEGAL_MOVES:
+		if _PERSPECTIVE == 'w':
 			loc = (move[0]*(_SIZE/8), (move[1]+1)*(_SIZE/8))
 		else:
 			loc = ((_SIZE * 7/8) - move[0]*(_SIZE/8), _SIZE - move[1]*(_SIZE/8))
-		board_graph.DrawImage(filename="img/" + img_folder + "/move_dot.png", location=loc)
+		_BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/move_dot.png", location=loc)
 
 def _draw_board():
-	global board_graph
-	global curr_data
+	global _BOARD_GRAPH
+	global _CURR_DATA
 
-	board_graph.erase()
-	# board_graph is necessarily the 800x800 board used in run()
-	board_graph.DrawImage(filename="img/" + img_folder + "/board.png", location=(0, _SIZE))
+	_BOARD_GRAPH.erase()
+	# _BOARD_GRAPH is necessarily the 800x800 board used in run()
+	_BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/board.png", location=(0, _SIZE))
 
-	board = curr_data['board']
-	transparent = (-1, -1) if not dragging else (moving_from[0], moving_from[1])
+	board = _CURR_DATA['board']
+	transparent = (-1, -1) if not dragging else (_MOVING_FROM[0], _MOVING_FROM[1])
 	for i in range(0, 8): # ranks, starting from the 8th rank
 		for j in range(0, 8): # files, starting from the a file
 
 			if not board[i][j] == '':
-				if perspective == 'w':
+				if _PERSPECTIVE == 'w':
 					locx, locy = _board_image_coords(j, i)
 				else:
 					locx, locy = _board_image_coords(7-j, 7-i)
@@ -356,80 +354,80 @@ def _draw_board():
 
 
 def _draw_piece(piece, loc, opaque):
-	global board_graph
+	global _BOARD_GRAPH
 
 	if piece == 'p':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/pawn_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/pawn_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'r':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/rook_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/rook_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'n':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/knight_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/knight_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'b':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/bishop_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/bishop_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'k':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/king_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/king_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'q':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/queen_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/queen_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'P':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/pawn_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/pawn_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'R':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/rook_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/rook_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'N':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/knight_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/knight_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'B':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/bishop_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/bishop_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'K':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/king_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/king_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'Q':
-		return board_graph.DrawImage(filename="img/" + img_folder + "/queen_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/queen_white" + ("" if opaque else "_trans") + ".png", location=loc)
 
 def _flip_board():
-	global perspective
-	if perspective == 'w':
-		perspective = 'b'
+	global _PERSPECTIVE
+	if _PERSPECTIVE == 'w':
+		_PERSPECTIVE = 'b'
 	else:
-		perspective = 'w'
+		_PERSPECTIVE = 'w'
 
 	_draw_board()
 
 
 
-last_X = 0
-last_Y = 0
+_LAST_X = 0
+_LAST_Y = 0
 def _board_motion_event(event):
-	global last_X
-	global last_Y
+	global _LAST_X
+	global _LAST_Y
 
-	last_X = event.x
-	last_Y = event.y
+	_LAST_X = event.x
+	_LAST_Y = event.y
 
 dragging = False
 dragging_image = None
 def _board_mouse_one_drag(event):
-	global last_X
-	global last_Y
+	global _LAST_X
+	global _LAST_Y
 
 	if dragging:
-		board_graph.Widget.coords(dragging_image, (last_X - (_IMG_DIM / 2), last_Y - (_IMG_DIM / 2)))
+		_BOARD_GRAPH.Widget.coords(dragging_image, (_LAST_X - (_IMG_DIM / 2), _LAST_Y - (_IMG_DIM / 2)))
 
-	last_X = event.x
-	last_Y = event.y
+	_LAST_X = event.x
+	_LAST_Y = event.y
 
 def _board_mouse_one(event):
-	x, y = _board_image_coords_to_xy(last_X, last_Y)
+	x, y = _board_image_coords_to_xy(_LAST_X, _LAST_Y)
 	
-	global legal_moves
-	global moving_piece
-	global curr_data
-	global moving_from
+	global _LEGAL_MOVES
+	global _MOVING_PIECE
+	global _CURR_DATA
+	global _MOVING_FROM
 	global dragging
 
-	if (_get_piece(x, y).islower() and curr_data['turn'] == 'b') or (_get_piece(x, y).isupper() and curr_data['turn'] == 'w'):
+	if (_get_piece(x, y).islower() and _CURR_DATA['turn'] == 'b') or (_get_piece(x, y).isupper() and _CURR_DATA['turn'] == 'w'):
 		dragging = True
-		moving_from = (x, y)
-		moving_piece = _get_piece(x, y)
+		_MOVING_FROM = (x, y)
+		_MOVING_PIECE = _get_piece(x, y)
 
-		legal_moves = _get_legal_moves(x, y)
+		_LEGAL_MOVES = _get_legal_moves(x, y)
 
 	_draw_board()
 	_layer_legal_moves()
@@ -439,7 +437,7 @@ def _board_mouse_one(event):
 def _layer_dragged_piece(piece):
 	global dragging_image
 
-	dragging_image = _draw_piece(piece, (last_X - (_IMG_DIM / 2), _SIZE + (_IMG_DIM / 2) - last_Y), True)
+	dragging_image = _draw_piece(piece, (_LAST_X - (_IMG_DIM / 2), _SIZE + (_IMG_DIM / 2) - _LAST_Y), True)
 
 
 def _board_mouse_three(event):
@@ -448,109 +446,111 @@ def _board_mouse_three(event):
 	pass
 
 def _board_mouse_one_release(event):
-	x, y = _board_image_coords_to_xy(last_X, last_Y)
+	x, y = _board_image_coords_to_xy(_LAST_X, _LAST_Y)
 
-	global legal_moves
-	global moving_piece
-	global curr_data
-	global moving_from
+	global _LEGAL_MOVES
+	global _MOVING_PIECE
+	global _CURR_DATA
+	global _MOVING_FROM
 	global dragging
 
-	if legal_moves != None and (x, y) in legal_moves:
-		fen_before = curr_data['fen']
+	if _LEGAL_MOVES != None and (x, y) in _LEGAL_MOVES:
+		fen_before = _CURR_DATA['fen']
 
-		_make_move(moving_from, (x, y))
+		_make_move(_MOVING_FROM, (x, y))
 
-		curr_data['fen'] = get_curr_fen()
+		_CURR_DATA['fen'] = _get_curr_fen()
 
-		_ROOT.after(10, analysis.RateMove, fen_before, curr_data['fen'])
+		_ROOT.after(10, analysis.RateMove, fen_before, _CURR_DATA['fen'])
 
-		analysis.SetFen(curr_data['fen'])
+		analysis.SetFen(_CURR_DATA['fen'])
 
-		legal_moves = ()
-		moving_piece = None
-		moving_from = None
+		_LEGAL_MOVES = ()
+		_MOVING_PIECE = None
+		_MOVING_FROM = None
 	else:
-		legal_moves = ()
-		moving_piece = None
-		moving_from = None
+		_LEGAL_MOVES = ()
+		_MOVING_PIECE = None
+		_MOVING_FROM = None
 
 	dragging = False
 	_draw_board()
 
 
-def _make_move(moving_from, moving_to):
+def _make_move(_MOVING_FROM, moving_to):
 	x = moving_to[0]
 	y = moving_to[1]
 
 	# Update the value for en passant
-	if moving_piece == 'p' or moving_piece == 'P':
-		if abs(y - moving_from[1]) == 2:
-			curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
-		elif curr_data['en passant'] != '-' and curr_data['en passant'][0] == x and curr_data['en passant'][1] == y:
-			if moving_piece == 'p':
-				_set_piece(x, y+1, '')
-			else:
-				_set_piece(x, y-1, '')
-
-	curr_data['en passant'] = "-"
+	if _MOVING_PIECE == 'p' or _MOVING_PIECE == 'P':
+		if abs(y - _MOVING_FROM[1]) == 2:
+			_CURR_DATA['en passant'] = (_MOVING_FROM[0], _MOVING_FROM[1]+1 if _MOVING_PIECE == 'P' else _MOVING_FROM[1]-1)
+		else:
+			if _CURR_DATA['en passant'] != '-' and _CURR_DATA['en passant'][0] == x and _CURR_DATA['en passant'][1] == y:
+				if _MOVING_PIECE == 'p':
+					_set_piece(x, y+1, '')
+				else:
+					_set_piece(x, y-1, '')
+	
+			_CURR_DATA['en passant'] = '-'
+		
 
 	# Increment the move counts
-	if moving_piece.islower():
-		curr_data['move counts'][1] = curr_data['move counts'][1] + 1
-	if _get_piece(x, y) != '' or moving_piece == 'p' or moving_piece == 'P':
-		curr_data['move counts'][0] = 0
+	if _MOVING_PIECE.islower():
+		_CURR_DATA['move counts'][1] = _CURR_DATA['move counts'][1] + 1
+	if _get_piece(x, y) != '' or _MOVING_PIECE == 'p' or _MOVING_PIECE == 'P':
+		_CURR_DATA['move counts'][0] = 0
 	else:
-		curr_data['move counts'][0] = curr_data['move counts'][0] + 1
+		_CURR_DATA['move counts'][0] = _CURR_DATA['move counts'][0] + 1
 
 	
 	# Move the actual piece (if anything is taken, it's overwritten in this process)
-	_set_piece(x, y, moving_piece)
-	_set_piece(moving_from[0], moving_from[1], '')
+	_set_piece(x, y, _MOVING_PIECE)
+	_set_piece(_MOVING_FROM[0], _MOVING_FROM[1], '')
 	# Remove castling rights if necessary
-	if moving_piece == 'R':
-		if 'Q' in curr_data['castling'] and moving_from[0] == 0 and moving_from[1] == 0:
-			curr_data['castling'] = curr_data['castling'].replace('Q', '')
-		elif 'K' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 0:
-			curr_data['castling'] = curr_data['castling'].replace('K', '')
-	elif moving_piece == 'r':
-		if 'q' in curr_data['castling'] and moving_from[0] == 0 and moving_from[1] == 7:
-			curr_data['castling'] = curr_data['castling'].replace('q', '')
-		elif 'k' in curr_data['castling'] and moving_from[0] == 7 and moving_from[1] == 7:
-			curr_data['castling'] = curr_data['castling'].replace('k', '')
+	if _MOVING_PIECE == 'R':
+		if 'Q' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 0 and _MOVING_FROM[1] == 0:
+			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('Q', '')
+		elif 'K' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 7 and _MOVING_FROM[1] == 0:
+			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('K', '')
+	elif _MOVING_PIECE == 'r':
+		if 'q' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 0 and _MOVING_FROM[1] == 7:
+			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('q', '')
+		elif 'k' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 7 and _MOVING_FROM[1] == 7:
+			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('k', '')
 	# Special case for castling
-	elif moving_piece == 'k':
-		curr_data['castling'] = curr_data['castling'].replace('k', '').replace('q', '')
-		if abs(moving_from[0] - x) == 2:
+	elif _MOVING_PIECE == 'k':
+		_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('k', '').replace('q', '')
+		if abs(_MOVING_FROM[0] - x) == 2:
 			if x == 2:
 				_set_piece(0, 7, '')
 				_set_piece(3, 7, 'r')
 			else:
 				_set_piece(7, 7, '')
 				_set_piece(5, 7, 'r')
-	elif moving_piece == 'K':
-		curr_data['castling'] = curr_data['castling'].replace('K', '').replace('Q', '')
-		if abs(moving_from[0] - x) == 2:
+	elif _MOVING_PIECE == 'K':
+		_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('K', '').replace('Q', '')
+		if abs(_MOVING_FROM[0] - x) == 2:
 			if x == 2:
 				_set_piece(0, 0, '')
 				_set_piece(3, 0, 'R')
 			else:
 				_set_piece(7, 0, '')
 				_set_piece(5, 0, 'R')
-	elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
+	elif (_MOVING_PIECE == 'p' and y == 0) or (_MOVING_PIECE == 'P' and y == 7):
 		# Auto-queen
-		_set_piece(x, y, 'q' if moving_piece == 'p' else 'Q')
+		_set_piece(x, y, 'q' if _MOVING_PIECE == 'p' else 'Q')
 
 	# Update whose turn it is
-	curr_data['turn'] = 'b' if curr_data['turn'] == 'w' else 'w'
+	_CURR_DATA['turn'] = 'b' if _CURR_DATA['turn'] == 'w' else 'w'
 
 
 
 def _get_legal_moves(x, y):
-	global curr_data
+	global _CURR_DATA
 
 	moves = _get_moves(x, y)
-	legal_moves = []
+	_LEGAL_MOVES = []
 	piece = _get_piece(x, y)
 
 	for move in moves:
@@ -559,17 +559,17 @@ def _get_legal_moves(x, y):
 		_set_piece(x, y, '')
 
 		if (piece.isupper() and not _is_in_check('w')) or (piece.islower() and not _is_in_check('b')):
-			legal_moves.append(move)
+			_LEGAL_MOVES.append(move)
 		_set_piece(x, y, piece)
 		_set_piece(move[0], move[1], taken_piece)
 
-	return legal_moves
+	return _LEGAL_MOVES
 
 # THIS FUNCTION DOES NOT CHECK THE LEGALITY OF THE MOVES IT RETURNS
 def _get_moves(x, y):
 	# 0-indexed, does NOT take input as rank/file
-	global curr_data
-	board = curr_data['board']
+	global _CURR_DATA
+	board = _CURR_DATA['board']
 
 	piece = _get_piece(x, y)
 	moves = []
@@ -588,8 +588,8 @@ def _get_moves(x, y):
 			moves.append((x-1, y+1))
 		if x < 7 and _get_piece(x+1, y+1).islower():
 			moves.append((x+1, y+1))
-		if curr_data['en passant'] != '-':
-			en_square = curr_data['en passant']
+		if _CURR_DATA['en passant'] != '-':
+			en_square = _CURR_DATA['en passant']
 			if abs(en_square[0] - x) == 1 and y - en_square[1] == -1:
 				moves.append(en_square)
 
@@ -606,8 +606,8 @@ def _get_moves(x, y):
 			moves.append((x-1, y-1))
 		if x < 7 and _get_piece(x+1, y-1).isupper():
 			moves.append((x+1, y-1))
-		if curr_data['en passant'] != '-':
-			en_square = curr_data['en passant']
+		if _CURR_DATA['en passant'] != '-':
+			en_square = _CURR_DATA['en passant']
 			if abs(en_square[0] - x) == 1 and y - en_square[1] == 1:
 				moves.append(en_square)
 
@@ -963,7 +963,7 @@ def _get_moves(x, y):
 
 		return moves
 	elif piece == 'K':
-		if 'K' in curr_data['castling'] and _get_piece(5, 0) == '' and _get_piece(6, 0) == '':
+		if 'K' in _CURR_DATA['castling'] and _get_piece(5, 0) == '' and _get_piece(6, 0) == '':
 			_set_piece(5, 0, 'K')
 			_set_piece(6, 0, 'K')
 
@@ -972,7 +972,7 @@ def _get_moves(x, y):
 
 			_set_piece(5, 0, '')
 			_set_piece(6, 0, '')
-		if 'Q' in curr_data['castling'] and _get_piece(1, 0) == '' and _get_piece(2, 0) == '' and _get_piece(3, 0) == '':
+		if 'Q' in _CURR_DATA['castling'] and _get_piece(1, 0) == '' and _get_piece(2, 0) == '' and _get_piece(3, 0) == '':
 			_set_piece(1, 0, 'K')
 			_set_piece(2, 0, 'K')
 			_set_piece(3, 0, 'K')
@@ -1002,9 +1002,9 @@ def _get_moves(x, y):
 
 		return moves
 	elif piece == 'k':
-		if 'k' in curr_data['castling'] and _get_piece(5, 7) == '' and _get_piece(6, 7) == '':
+		if 'k' in _CURR_DATA['castling'] and _get_piece(5, 7) == '' and _get_piece(6, 7) == '':
 			moves.append((6, 7))
-		if 'q' in curr_data['castling'] and _get_piece(1, 7) == '' and _get_piece(2, 7) == '' and _get_piece(3, 7) == '':
+		if 'q' in _CURR_DATA['castling'] and _get_piece(1, 7) == '' and _get_piece(2, 7) == '' and _get_piece(3, 7) == '':
 			moves.append((2, 7))
 
 		prelim = []

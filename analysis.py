@@ -99,6 +99,8 @@ def _writing_thread_run():
 
         _WRITING_FEN = _PRIMED_FEN
 
+        """ TODO: Add a mechanism that can make it so that stop is not run until the current analysis is totally finished
+                      * this probably involves using another condition variable for when bestmove is found in the read thread """
         # We have a new FEN now
         _write('stop\n')
 
@@ -180,8 +182,10 @@ def _reading_thread_run():
                     
                     _STORAGE[_READING_FEN] = (_CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH)
             
-            if _ALIVE:
+            try:
                 _ROOT.event_generate("<<Analysis-Update>>")
+            except:
+                sys.exit(0)
 
     sys.exit(0)
 
@@ -225,6 +229,9 @@ def RateMove(FEN_before, FEN_after):
         score_after = _STORAGE[FEN_after][0]
         score_before = _STORAGE[FEN_before][0]
 
+        if type(score_after) == str or type(score_before) == str:
+            pass
+
         print("CATEGORY: %s" % (_categorize_move(score_before, -score_after)))
         print("New best move: %s" % (_STORAGE[FEN_after][1]))
     except KeyError:
@@ -232,23 +239,11 @@ def RateMove(FEN_before, FEN_after):
         _ROOT.after(300, RateMove, FEN_before, FEN_after)
 
 
-# Returns the score for the position as well as the best move
-def _score_sync(FEN):
-    SetFen(FEN)
-
-    return _CURR_EVAL, _CURR_BEST_MOVE
-
-
-def pass_func():
-    pass
-
-
 # Takes the raw analysis value from before and after the move BOTH RELATIVE
 # TO THE PERSON THAT MADE THE MOVE, this should ONLY be run if the move was
 # NOT the best move in the position
 def _categorize_move(score_before, score_after):
     diff = abs(score_after - score_before)
-    print("Before: %s, after: %s" % (score_before, score_after))
     if diff > 250:
         return 'blunder'
     elif diff > 130:
