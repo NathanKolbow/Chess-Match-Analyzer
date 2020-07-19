@@ -11,11 +11,13 @@
 
 import threading
 import subprocess
+import tkinter
 import sys
+from time import sleep
 
 _READ_THREAD = None
 _WRITE_THREAD = None
-_DEPTH = 18
+_DEPTH = 25
 _ALIVE = True
 
 _PROC = None
@@ -69,6 +71,7 @@ _PRIMED_FEN = ""
 _WRITING_FEN = ""
 _READING_FEN = ""
 _CURR_EVAL = 0
+_CURR_DEPTH = 0
 _CURR_BEST_MOVE = ""
 _ANALYZING = False
 _READ_FEN_COUNT = 0
@@ -101,7 +104,6 @@ def _writing_thread_run():
 
         _WRITING_FEN = _PRIMED_FEN
         _NEW_FEN_BOOL = False
-        _WRITTEN_FEN_COUNT += 1
 
         _write('position fen ' + _WRITING_FEN + '\n')
         _write('go depth ' + str(_DEPTH) + '\n')
@@ -120,8 +122,10 @@ def _reading_thread_run():
     global _PRIMED_FEN
     global _CURR_EVAL
     global _CURR_BEST_MOVE
+    global _CURR_DEPTH
     global _WRITTEN_FEN_COUNT
     global _READ_FEN_COUNT
+    global _STORAGE
 
     while _ALIVE:
         while _WRITTEN_FEN_COUNT == _READ_FEN_COUNT:
@@ -132,7 +136,6 @@ def _reading_thread_run():
 
             _WAITING_FOR_UPDATE_READ.wait()
             _WAITING_FOR_UPDATE_READ.release()
-
 
         # Get the line output and change it from bytes to a legible string
         while _WRITTEN_FEN_COUNT != _READ_FEN_COUNT:
@@ -166,13 +169,19 @@ def _reading_thread_run():
                         elif split[_index] == "bestmove":
                             _CURR_BEST_MOVE = split[_index+1]
                             _index += 2
+                        elif split[_index] == "depth":
+                            _CURR_DEPTH = split[_index+1]
+                            _index += 2
                         else:
                             _index += 1
                 elif split[0] == "bestmove":
                     _CURR_BEST_MOVE = split[1]
                     _READ_FEN_COUNT += 1
+                    
+                    _STORAGE[_READING_FEN] = (_CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH)
             
-            _ROOT.event_generate("<<Analysis-Update>>")
+            if _ALIVE:
+                _ROOT.event_generate("<<Analysis-Update>>")
 
     sys.exit(0)
 
@@ -188,10 +197,12 @@ def CurrentAnalysis():
 def SetFen(FEN):
     global _NEW_FEN_BOOL
     global _WAITING_FOR_UPDATE_WRITE
+    global _WRITTEN_FEN_COUNT
     global _PRIMED_FEN
 
     _PRIMED_FEN = FEN
     _NEW_FEN_BOOL = True
+    _WRITTEN_FEN_COUNT += 1
     _WAITING_FOR_UPDATE_WRITE.acquire()
     _WAITING_FOR_UPDATE_WRITE.notify()
     _WAITING_FOR_UPDATE_WRITE.release()
@@ -202,3 +213,49 @@ def _write(str):
 
     _PROC.stdin.write(str.encode())
     _PROC.stdin.flush()
+
+
+# Takes the FEN before the position was made and the FEN after
+# the position was made as input
+_STORAGE = {}
+def RateMove(FEN_before, FEN_after):
+    global _STORAGE
+
+    try:
+        score_after = _STORAGE[FEN_after][0]
+        score_before = _STORAGE[FEN_before][0]
+
+        print("CATEGORY: %s" % (_categorize_move(score_before, -score_after)))
+        print("New best move: %s" % (_STORAGE[FEN_after][1]))
+    except KeyError:
+        print("Pushing back 300ms")
+        _ROOT.after(300, RateMove, FEN_before, FEN_after)
+
+
+# Returns the score for the position as well as the best move
+def _score_sync(FEN):
+    SetFen(FEN)
+
+    return _CURR_EVAL, _CURR_BEST_MOVE
+
+
+def pass_func():
+    pass
+
+
+# Takes the raw analysis value from before and after the move BOTH RELATIVE
+# TO THE PERSON THAT MADE THE MOVE, this should ONLY be run if the move was
+# NOT the best move in the position
+def _categorize_move(score_before, score_after):
+    diff = abs(score_after - score_before)
+    print("Before: %s, after: %s" % (score_before, score_after))
+    if diff > 250:
+        return 'blunder'
+    elif diff > 130:
+        return 'mistake'
+    elif diff > 80:
+        return 'inacurracy'
+    elif diff > 10:
+        return 'good'
+    else:
+        return 'excellent'

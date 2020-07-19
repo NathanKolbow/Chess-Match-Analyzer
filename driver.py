@@ -18,14 +18,14 @@ random_fen = "1n2k3/r1p1p1b1/p3q3/1P1r1np1/p5RP/R2Pp3/1Bb2P2/1N1QKBN1 w - - 3 22
 
 
 bar_val = 0
-
+CANVAS_SIZE = 800
 
 def run():
 	board = [
 		[
-			sg.Graph(canvas_size=(800, 800),
+			sg.Graph(canvas_size=(CANVAS_SIZE, CANVAS_SIZE),
 					graph_bottom_left=(0,0),
-					graph_top_right=(800,800),
+					graph_top_right=(CANVAS_SIZE, CANVAS_SIZE),
 					key="board"
 			)
 		]
@@ -35,9 +35,9 @@ def run():
 #	]
 	analysis_bar = [
 		[
-			sg.Graph(canvas_size=(50, 800),
+			sg.Graph(canvas_size=(50, CANVAS_SIZE),
 				graph_bottom_left=(0,0),
-				graph_top_right=(50,800),
+				graph_top_right=(50,CANVAS_SIZE),
 				key="analysis_bar"
 			)
 		]
@@ -58,7 +58,7 @@ def run():
 	board_graph = window.Element('board')
 	window.Finalize()
 
-	butil.Init(board_graph, bar, window.TKroot)
+	butil.Init(board_graph, bar, window.TKroot, CANVAS_SIZE)
 	analysis.Init(window.TKroot)
 	analysis.SetFen(starting_pos_fen)
 

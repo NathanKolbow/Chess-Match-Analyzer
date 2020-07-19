@@ -1,10 +1,11 @@
 import PySimpleGUI as sg
+import tkinter
 import analysis
 import threading
 from math import sqrt
 
 img_folder = "pieces_wooden"
-img_dim = 100 # dimension of the piece images, i.e. 100x100
+_IMG_DIM = -1 # dimension of the piece images, i.e. 100x100
 
 perspective = 'w'
 board_graph = None
@@ -30,13 +31,14 @@ moving_from = None
 
 __ANALYSIS_GRAPH__ = None
 __ANALYSIS_RECT__ = None
-__RECT_Y__ = 800
-__RECT_TARGET_Y__ = 800
+__RECT_Y__ = -1
+__RECT_TARGET_Y__ = -1
 __ANALYSIS_TEXT__ = "0.0"
 
 _ROOT = None
+_SIZE = 0
 
-def Init(graph, bar, root):
+def Init(graph, bar, root, size):
 	global _ROOT
 	_ROOT = root
 
@@ -54,17 +56,26 @@ def Init(graph, bar, root):
 	global __ANALYSIS_GRAPH__
 	global __ANALYSIS_RECT__
 	global __ANALYSIS_TEXT__
+	global _SIZE
+	global _IMG_DIM
+	global __RECT_Y__
+	global __RECT_TARGET_Y__
+	__RECT_Y__ = size / 2
+	__RECT_TARGET_Y__ = size / 2
+	_SIZE = size
+	_IMG_DIM = _SIZE / 8
+
 
 	__ANALYSIS_GRAPH__ = bar
-	__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, 800), fill_color='white', line_color='black')
-	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, 800), (50, 0), fill_color='gray')
-	_set_bar_height(400)
-	__ANALYSIS_GRAPH__.DrawRectangle((0, 401), (50, 400), fill_color='black', line_color='black')
+	__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, size), fill_color='white', line_color='black')
+	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, size), (50, 0), fill_color='gray')
+	__ANALYSIS_GRAPH__.DrawRectangle((0, size/2+1), (50, size/2), fill_color='black', line_color='black')
 	__ANALYSIS_TEXT__ = __ANALYSIS_GRAPH__.DrawText("0.0", (17, 10), text_location=sg.TEXT_LOCATION_BOTTOM_LEFT, font='Courier 9')
 
 
 _ANIMATING = False
 def _set_bar_height(y):
+	print("y: %s" % (y))
 	global __ANALYSIS_GRAPH__
 	global __ANALYSIS_RECT__
 	global __RECT_Y__
@@ -72,33 +83,42 @@ def _set_bar_height(y):
 	global _ANIMATING
 	global _ROOT
 
-	if type(y) == float:
-		__RECT_TARGET_Y__ = y
+	try:
+		if type(y) == float:
+			__RECT_TARGET_Y__ = y
 
-		if not _ANIMATING:
-			_ANIMATING = True
-			_ROOT.event_generate("<<Bar-Animation>>")
+			"""		if not _ANIMATING:
+						_ANIMATING = True
+						_ROOT.update()
+						_ROOT.event_generate("<<Bar-Animation>>")
 
-	else:
-		while abs(__RECT_TARGET_Y__ - __RECT_Y__) > 1:
-			diff = __RECT_TARGET_Y__ - __RECT_Y__
-			abs_diff = abs(diff)
-			parity = diff / abs_diff
+				else:
+					print("ELSE")"""
 
-			if abs_diff >= 200:
-				__RECT_Y__ += parity * 0.7
-			elif abs_diff >= 30:
-				__RECT_Y__ += parity * 0.3
-			else:
-				__RECT_Y__ += parity * 0.075
+			while abs(__RECT_TARGET_Y__ - __RECT_Y__) > 1:
+				diff = __RECT_TARGET_Y__ - __RECT_Y__
+				abs_diff = abs(diff)
+				parity = diff / abs_diff
 
+				if abs_diff >= 200:
+					__RECT_Y__ += parity * 0.7
+				elif abs_diff >= 30:
+					__RECT_Y__ += parity * 0.3
+				else:
+					__RECT_Y__ += parity * 0.075
+
+				__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_RECT__, (0, 0, 50, __RECT_Y__))
+
+				_ROOT.update()
+
+			__RECT_Y__ = __RECT_TARGET_Y__
 			__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_RECT__, (0, 0, 50, __RECT_Y__))
+			_ANIMATING = False
+	except tkinter.TclError:
+		pass
 
-			_ROOT.update()
 
-		__RECT_Y__ = __RECT_TARGET_Y__
-		__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_RECT__, (0, 0, 50, __RECT_Y__))
-		_ANIMATING = False
+	print("End of func, _r_y_: %s" % (__RECT_Y__))
 
 
 
@@ -182,16 +202,16 @@ def _rank_file_to_xy(rankfile):
 	return (row, int(rankfile[1])-1)
 
 def _board_image_coords_to_xy(x, y):
-	y = 800-y
+	y = _SIZE-y
 	# 0-indexed
 	if perspective == 'w':
-		return x // 100, y // 100
+		return int(x // (_SIZE/8)), int(y // (_SIZE/8))
 	else:
-		return 7 - x // 100, 7 - y // 100
+		return int(7 - x // (_SIZE/8)), int(7 - y // (_SIZE/8))
 
 def _board_image_coords(row, column):
 	# 0-indexed
-	return (row * 100, 100 + column * 100)
+	return (row * (_SIZE/8), (_SIZE/8) + column * (_SIZE/8))
 
 def AnalysisEvent(event):
 	eval, best_move, fen = analysis.CurrentAnalysis()
@@ -210,13 +230,14 @@ def _adjust_text(string, loc):
 
 def _adjust_bar(eval):
 	""" TODO: Check to make sure the settings for mates are correct (they probably aren't) """
+	global _SIZE
 
 	if type(eval) == str:
 		if '-' in eval:
 			if curr_data['turn'] == 'w':
 				print('1')
 				_adjust_text("M" + eval.split('+')[1], (7, 20))
-				_set_bar_height(800)
+				_set_bar_height(_SIZE)
 			else:
 				print('2')
 				_adjust_text("M+" + eval.split('-')[1], (7, 790))
@@ -226,9 +247,11 @@ def _adjust_bar(eval):
 				if curr_data['turn'] == 'w':
 					print('3')
 					_adjust_text('0-1', (7, 20))
+					_set_bar_height(0)
 				else:
 					print('4')
 					_adjust_text('1-0', (7, 790))
+					_set_bar_height(_SIZE)
 			elif curr_data['turn'] == 'w':
 				print('5')
 				_adjust_text("M+" + eval.split('+')[1], (7, 790))
@@ -236,14 +259,14 @@ def _adjust_bar(eval):
 			else:
 				print('6')
 				_adjust_text("M-" + eval.split('+')[1], (7, 20))
-				_set_bar_height(800)
+				_set_bar_height(_SIZE)
 	else:
 		adjusted_eval = eval/100 if curr_data['turn'] == 'w' else -eval/100
 		_adjust_text(str(adjusted_eval), 
 						(7, 20) if adjusted_eval < 0 else (7, 790))
 		
 		proportion = _transform(eval/100)
-		_set_bar_height(800 * proportion)
+		_set_bar_height(_SIZE * proportion)
 		
 
 
@@ -300,9 +323,9 @@ def _layer_legal_moves():
 
 	for move in legal_moves:
 		if perspective == 'w':
-			loc = (move[0]*100, (move[1]+1)*100)
+			loc = (move[0]*(_SIZE/8), (move[1]+1)*(_SIZE/8))
 		else:
-			loc = (700 - move[0]*100, 800 - move[1]*100)
+			loc = ((_SIZE * 7/8) - move[0]*(_SIZE/8), _SIZE - move[1]*(_SIZE/8))
 		board_graph.DrawImage(filename="img/" + img_folder + "/move_dot.png", location=loc)
 
 def _draw_board():
@@ -311,7 +334,7 @@ def _draw_board():
 
 	board_graph.erase()
 	# board_graph is necessarily the 800x800 board used in run()
-	board_graph.DrawImage(filename="img/" + img_folder + "/board.png", location=(0, 800))
+	board_graph.DrawImage(filename="img/" + img_folder + "/board.png", location=(0, _SIZE))
 
 	board = curr_data['board']
 	transparent = (-1, -1) if not dragging else (moving_from[0], moving_from[1])
@@ -387,7 +410,7 @@ def _board_mouse_one_drag(event):
 	global last_Y
 
 	if dragging:
-		board_graph.Widget.coords(dragging_image, (last_X - (img_dim / 2), last_Y - (img_dim / 2)))
+		board_graph.Widget.coords(dragging_image, (last_X - (_IMG_DIM / 2), last_Y - (_IMG_DIM / 2)))
 
 	last_X = event.x
 	last_Y = event.y
@@ -416,7 +439,7 @@ def _board_mouse_one(event):
 def _layer_dragged_piece(piece):
 	global dragging_image
 
-	dragging_image = _draw_piece(piece, (last_X - (img_dim / 2), 800 + (img_dim / 2) - last_Y), True)
+	dragging_image = _draw_piece(piece, (last_X - (_IMG_DIM / 2), _SIZE + (_IMG_DIM / 2) - last_Y), True)
 
 
 def _board_mouse_three(event):
@@ -434,9 +457,14 @@ def _board_mouse_one_release(event):
 	global dragging
 
 	if legal_moves != None and (x, y) in legal_moves:
+		fen_before = curr_data['fen']
+
 		_make_move(moving_from, (x, y))
 
 		curr_data['fen'] = get_curr_fen()
+
+		_ROOT.after(10, analysis.RateMove, fen_before, curr_data['fen'])
+
 		analysis.SetFen(curr_data['fen'])
 
 		legal_moves = ()
@@ -456,15 +484,16 @@ def _make_move(moving_from, moving_to):
 	y = moving_to[1]
 
 	# Update the value for en passant
-	curr_data['en passant'] = "-"
 	if moving_piece == 'p' or moving_piece == 'P':
 		if abs(y - moving_from[1]) == 2:
 			curr_data['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
-		elif moving_from[0] - x != 0:
+		elif curr_data['en passant'] != '-' and curr_data['en passant'][0] == x and curr_data['en passant'][1] == y:
 			if moving_piece == 'p':
 				_set_piece(x, y+1, '')
 			else:
 				_set_piece(x, y-1, '')
+
+	curr_data['en passant'] = "-"
 
 	# Increment the move counts
 	if moving_piece.islower():
