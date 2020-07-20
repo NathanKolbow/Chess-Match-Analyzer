@@ -17,39 +17,56 @@ _RANDOM_FEN = "1n2k3/r1p1p1b1/p3q3/1P1r1np1/p5RP/R2Pp3/1Bb2P2/1N1QKBN1 w - - 3 2
 
 CANVAS_SIZE = 800
 
+BG_COLOR = "#69a4b5"
+
 def run():
-	board = [
-		[
-			sg.Graph(canvas_size=(CANVAS_SIZE, CANVAS_SIZE),
-					graph_bottom_left=(0,0),
-					graph_top_right=(CANVAS_SIZE, CANVAS_SIZE),
-					key="board"
-			)
-		]
-	]
 #	printout = [
 #		[sg.Output(size=(100,20))],
 #	]
+	menu = [
+		['Help', ['About']]
+	]
 	analysis_bar = [
 		[
 			sg.Graph(canvas_size=(50, CANVAS_SIZE),
 				graph_bottom_left=(0,0),
 				graph_top_right=(50,CANVAS_SIZE),
-				key="analysis_bar"
+				key="analysis_bar",
+				background_color=BG_COLOR
 			)
 		]
 	]
-
+	board = [
+		[
+			sg.Text("Hickory Neckboy", font='Calibri\ Bold 12', background_color=BG_COLOR),
+			sg.Text("(2800)", font='Calibri 12', background_color=BG_COLOR)
+		],
+		[
+			sg.Graph(canvas_size=(CANVAS_SIZE, CANVAS_SIZE),
+					graph_bottom_left=(0,0),
+					graph_top_right=(CANVAS_SIZE, CANVAS_SIZE),
+					key="board", 
+					background_color=BG_COLOR
+			)
+		],
+		[
+			sg.Text("Nuhthan Kelbith", font='Calibri\ Bold 12', background_color=BG_COLOR),
+			sg.Text("(1337)", font='Calibri 12', background_color=BG_COLOR)
+		]
+	]
 	layout = [
-		[sg.Column(analysis_bar),
-		sg.VSeparator(),
-		sg.Column(board)],
-#		sg.VSeparator(),
-#		sg.Column(printout)],
+		[sg.Menu(menu)],
+		[sg.Column(analysis_bar, pad=(0, 31), background_color=BG_COLOR),
+		sg.Column(board, background_color=BG_COLOR)],
+
+#		sg.Column([
+#			[sg.Text('Hikaru Nakamura'), board, sg.Text('Nathan Kolbow')],
+#		]),
+
 		[sg.Button('', key='Back', image_data=_BUTTON_LEFT_BASE64),
 		sg.Button('', key='Next', image_data=_BUTTON_RIGHT_BASE64)],
 	]
-	window = sg.Window('Match Analyzer', layout)
+	window = sg.Window('Match Analyzer', layout, background_color=BG_COLOR)
 
 	bar = window.Element('analysis_bar')
 	board_graph = window.Element('board')
@@ -60,7 +77,7 @@ def run():
 	analysis.SetFen(_STARTING_POS_FEN)
 
 	butil.SetPosFromFEN(_STARTING_POS_FEN)
-	butil._pgn_to_fen_list("[Some tag in here] 1. a4 a6 2. h4 Nc6 3. Ra3 Nb8 4. Rhh3 Nc6 5. Rae3 Nb8 6. Re6 Nc6 7. Rhe3 Nb8 8. R6e4 Nc6 9. Rc3 Nb8 10. Rcc4 Nc6 11. Red4 Nb8 12. Rg4")
+	#butil._pgn_to_fen_list("1. a4 b5 2. axb5 c5 3. bxc6 Bb7 4. cxb7 a6 5. bxa8=B")
 
 	while True:
 		event, values = window.read()
@@ -68,7 +85,10 @@ def run():
 		if event == 'Next':
 			butil.PGNNext()
 		elif event == 'Back':
-			butil.PGNBack()
+			print("Clipboard: " + window.TKroot.clipboard_get())
+			#butil.PGNBack()
+		elif event == 'About':
+			print("ABOUT")
 		elif event == sg.WIN_CLOSED:
 			break
 

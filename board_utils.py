@@ -6,7 +6,7 @@ from math import sqrt
 
 _STARTING_POS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-_IMG_FOLDER = "pieces_wooden"
+_IMG_FOLDER = "img/pieces_wooden"
 _IMG_DIM = -1 # dimension of the piece images, i.e. 100x100
 
 _PERSPECTIVE = 'w'
@@ -65,11 +65,11 @@ def Init(graph, bar, root, size):
 	__RECT_Y__ = size / 2
 	__RECT_TARGET_Y__ = size / 2
 	_SIZE = size
-	_IMG_DIM = _SIZE / 8
+	_IMG_DIM = int(_SIZE / 8)
 
 	__ANALYSIS_GRAPH__ = bar
 	__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, size), fill_color='white', line_color='black')
-	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, size), (50, 0), fill_color='gray')
+	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, size), (50, size/2), fill_color='gray')
 	__ANALYSIS_GRAPH__.DrawRectangle((0, size/2+1), (50, size/2), fill_color='black', line_color='black')
 	__ANALYSIS_TEXT__ = __ANALYSIS_GRAPH__.DrawText("0.0", (17, 10), text_location=sg.TEXT_LOCATION_BOTTOM_LEFT, font='Courier 9')
 
@@ -87,16 +87,8 @@ def _set_bar_height(y):
 	global _ROOT
 
 	try:
-		if type(y) == float:
+		if type(y) == float or type(y) == int:
 			__RECT_TARGET_Y__ = y
-
-			"""		if not _ANIMATING:
-						_ANIMATING = True
-						_ROOT.update()
-						_ROOT.event_generate("<<Bar-Animation>>")
-
-				else:
-					print("ELSE")"""
 
 			while abs(__RECT_TARGET_Y__ - __RECT_Y__) > 1:
 				diff = __RECT_TARGET_Y__ - __RECT_Y__
@@ -239,29 +231,29 @@ def _adjust_bar(eval):
 	if type(eval) == str:
 		if '-' in eval:
 			if _CURR_DATA['turn'] == 'w':
-				print('1')
+				""" CORRECT """
 				_adjust_text("M" + eval.split('+')[1], (7, 20))
 				_set_bar_height(_SIZE)
 			else:
-				print('2')
+				""" CORRECT """
 				_adjust_text("M+" + eval.split('-')[1], (7, 790))
 				_set_bar_height(0)
 		else:
 			if int(eval.split('+')[1]) == 0:
 				if _CURR_DATA['turn'] == 'w':
-					print('3')
+					""" CORRECT """
 					_adjust_text('0-1', (7, 20))
-					_set_bar_height(0)
-				else:
-					print('4')
-					_adjust_text('1-0', (7, 790))
 					_set_bar_height(_SIZE)
+				else:
+					""" CORRECT """
+					_adjust_text('1-0', (7, 790))
+					_set_bar_height(0)
 			elif _CURR_DATA['turn'] == 'w':
-				print('5')
+				""" CORRECT """
 				_adjust_text("M+" + eval.split('+')[1], (7, 790))
 				_set_bar_height(0)
 			else:
-				print('6')
+				""" CORRECT """
 				_adjust_text("M-" + eval.split('+')[1], (7, 20))
 				_set_bar_height(_SIZE)
 	else:
@@ -330,15 +322,24 @@ def _layer_legal_moves():
 			loc = (move[0]*(_SIZE/8), (move[1]+1)*(_SIZE/8))
 		else:
 			loc = ((_SIZE * 7/8) - move[0]*(_SIZE/8), _SIZE - move[1]*(_SIZE/8))
-		_BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/move_dot.png", location=loc)
+		_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/move_dot.png", location=loc)
 
 def _draw_board():
 	global _BOARD_GRAPH
 	global _CURR_DATA
+	global _LAST_MOVE_FROM
+	global _LAST_MOVE_TO
 
 	_BOARD_GRAPH.erase()
 	# _BOARD_GRAPH is necessarily the 800x800 board used in run()
-	_BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/board.png", location=(0, _SIZE))
+	_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/board.png", location=(0, _SIZE))
+
+	if _LAST_MOVE_FROM != (-1, -1):
+		bottom_corner_from = _board_image_coords(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1])
+		bottom_corner_to = _board_image_coords(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1])
+
+		_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/last_move.png", location=bottom_corner_from)
+		_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/last_move.png", location=bottom_corner_to)
 
 	board = _CURR_DATA['board']
 	transparent = (-1, -1) if not dragging else (_MOVING_FROM[0], _MOVING_FROM[1])
@@ -363,29 +364,29 @@ def _draw_piece(piece, loc, opaque):
 	global _BOARD_GRAPH
 
 	if piece == 'p':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/pawn_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/pawn_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'r':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/rook_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/rook_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'n':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/knight_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/knight_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'b':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/bishop_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/bishop_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'k':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/king_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/king_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'q':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/queen_black" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/queen_black" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'P':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/pawn_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/pawn_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'R':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/rook_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/rook_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'N':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/knight_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/knight_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'B':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/bishop_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/bishop_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'K':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/king_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/king_white" + ("" if opaque else "_trans") + ".png", location=loc)
 	elif piece == 'Q':
-		return _BOARD_GRAPH.DrawImage(filename="img/" + _IMG_FOLDER + "/queen_white" + ("" if opaque else "_trans") + ".png", location=loc)
+		return _BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/queen_white" + ("" if opaque else "_trans") + ".png", location=loc)
 
 def _flip_board():
 	global _PERSPECTIVE
@@ -483,8 +484,9 @@ def _board_mouse_one_release(event):
 	_draw_board()
 
 
-def _make_move(moving_from, moving_to, promotion='q'):
-	print("MAKING MOVE: (%s, %s) to (%s, %s)" % (moving_from[0], moving_from[1], moving_to[0], moving_to[1]))
+_LAST_MOVE_FROM = (-1, -1)
+_LAST_MOVE_Y = (-1, -1)
+def _make_move(moving_from, moving_to, promotion=None):
 	x = moving_to[0]
 	y = moving_to[1]
 
@@ -547,12 +549,43 @@ def _make_move(moving_from, moving_to, promotion='q'):
 				_set_piece(5, 0, 'R')
 	elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
 		# Promote the pawn
-		_set_piece(x, y, promotion.lower() if moving_piece == 'p' else promotion.upper())
+		global _SIZE
+
+		if promotion == None:
+			button_layout = [
+				[	
+					sg.Button("", image_filename=(_IMG_FOLDER + "/queen_" + ("white" if _CURR_DATA['turn'] == 'w' else "black") + ".png"), 
+					key='Q' if _CURR_DATA['turn'] == 'w' else 'q', auto_size_button=False, size=(_IMG_DIM, _IMG_DIM)),
+					sg.Button("", image_filename=(_IMG_FOLDER + "/rook_" + ("white" if _CURR_DATA['turn'] == 'w' else "black") + ".png"), 
+					key='R' if _CURR_DATA['turn'] == 'w' else 'r', auto_size_button=False, size=(_IMG_DIM, _IMG_DIM)),
+					sg.Button("", image_filename=(_IMG_FOLDER + "/knight_" + ("white" if _CURR_DATA['turn'] == 'w' else "black") + ".png"), 
+					key='N' if _CURR_DATA['turn'] == 'w' else 'n', auto_size_button=False, size=(_IMG_DIM, _IMG_DIM)),
+					sg.Button("", image_filename=(_IMG_FOLDER + "/bishop_" + ("white" if _CURR_DATA['turn'] == 'w' else "black") + ".png"), 
+					key='B' if _CURR_DATA['turn'] == 'w' else 'b', auto_size_button=False, size=(_IMG_DIM, _IMG_DIM))
+				]
+			]
+
+			promotion_window = sg.Window('Promotion', button_layout)
+			while True:
+				button, val = promotion_window.read()
+				if button is None or button == "__TIMEOUT__":
+					pass
+				else:
+					promotion = button
+					break
+
+			promotion_window.close()
+
+		_set_piece(x, y, promotion)
+
+	global _LAST_MOVE_FROM
+	global _LAST_MOVE_TO
+	_LAST_MOVE_FROM = moving_from
+	_LAST_MOVE_TO = moving_to
 
 	# Update whose turn it is
 	_CURR_DATA['turn'] = 'b' if _CURR_DATA['turn'] == 'w' else 'w'
 	_CURR_DATA['fen'] = _get_curr_fen()
-
 
 
 def _get_legal_moves(x, y):
@@ -1086,7 +1119,6 @@ def _pgn_to_fen_list(PGN):
 	i = 0
 	white = True
 	while i < len(PGN):
-		print('i at: %s/%s' % (i, len(PGN) - 1))
 		if PGN[i] == '{':
 			while PGN[i] != '}':
 				i += 1
@@ -1094,9 +1126,7 @@ def _pgn_to_fen_list(PGN):
 			while PGN[i] != '\n':
 				i += 1
 		elif PGN[i] == '[':
-			print("Skipping...")
 			while PGN[i] != ']':
-				print("looping...")
 				""" TODO: Implement actually reading the tag info here; all used tags are listed on https://en.wikipedia.org/wiki/Portable_Game_Notation#Tag_pairs """
 				i += 1
 		elif PGN[i] == '\n':
@@ -1181,8 +1211,6 @@ def _pgn_to_fen_list(PGN):
 			white = not white
 				
 		i += 1
-
-	print('Done loading PGN.')
 
 
 def _is_int(string):

@@ -139,55 +139,73 @@ def _reading_thread_run():
             _WAITING_FOR_UPDATE_READ.wait()
             _WAITING_FOR_UPDATE_READ.release()
 
-        # Get the line output and change it from bytes to a legible string
-        while _WRITTEN_FEN_COUNT != _READ_FEN_COUNT:
+        try:
+            _CURR_EVAL = _STORAGE[_PRIMED_FEN][0]
+            _CURR_BEST_MOVE = _STORAGE[_PRIMED_FEN][1]
             _READING_FEN = _PRIMED_FEN
-            out = str(_PROC.stdout.read1(-1))[2:-1].replace('\\r', '').split('\\n')
 
-            for item in out:
-                # Split the output so it can be easily parsed
-                split = item.split(' ')
-
-                if split[0] == "" and _PROC.poll() == 0:
-                    # Output isn't being read anymore and the main proc is closed
-                    return
-                elif split[0] == "uciok":
+            _raise_event()
+            _READ_FEN_COUNT += 1
+        except KeyError:
+            while _WRITTEN_FEN_COUNT != _READ_FEN_COUNT:
+                try:
+                    if _PRIMED_FEN != _READING_FEN:
+                        _STORAGE[_PRIMED_FEN]
+                        break
+                except KeyError:
                     pass
-                elif split[0] == "info":
-                    _index = 1
+                _READING_FEN = _PRIMED_FEN
+                
+                out = str(_PROC.stdout.read1(-1))[2:-1].replace('\\r', '').split('\\n')
 
-                    # Parse the line
-                    while _index < len(split):
-                        if split[_index] == "score":
-                            if split[_index+1] == "cp":
-                                _CURR_EVAL = int(split[_index+2])
-                                _index += 3
-                            elif split[_index+1] == "mate":
-                                _CURR_EVAL = 'MATE+' + split[_index+2]
-                                _index += 3
-                        elif split[_index] == "pv":
-                            _CURR_BEST_MOVE = split[_index+1]
-                            _index += 2
-                        elif split[_index] == "bestmove":
-                            _CURR_BEST_MOVE = split[_index+1]
-                            _index += 2
-                        elif split[_index] == "depth":
-                            _CURR_DEPTH = split[_index+1]
-                            _index += 2
-                        else:
-                            _index += 1
-                elif split[0] == "bestmove":
-                    _CURR_BEST_MOVE = split[1]
-                    _READ_FEN_COUNT += 1
-                    
-                    _STORAGE[_READING_FEN] = (_CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH)
-            
-            try:
-                _ROOT.event_generate("<<Analysis-Update>>")
-            except:
-                sys.exit(0)
+                for item in out:
+                    # Split the output so it can be easily parsed
+                    split = item.split(' ')
+
+                    if split[0] == "" and _PROC.poll() == 0:
+                        # Output isn't being read anymore and the main proc is closed
+                        return
+                    elif split[0] == "uciok":
+                        pass
+                    elif split[0] == "info":
+                        _index = 1
+
+                        # Parse the line
+                        while _index < len(split):
+                            if split[_index] == "score":
+                                if split[_index+1] == "cp":
+                                    _CURR_EVAL = int(split[_index+2])
+                                    _index += 3
+                                elif split[_index+1] == "mate":
+                                    _CURR_EVAL = 'MATE+' + split[_index+2]
+                                    _index += 3
+                            elif split[_index] == "pv":
+                                _CURR_BEST_MOVE = split[_index+1]
+                                _index += 2
+                            elif split[_index] == "bestmove":
+                                _CURR_BEST_MOVE = split[_index+1]
+                                _index += 2
+                            elif split[_index] == "depth":
+                                _CURR_DEPTH = split[_index+1]
+                                _index += 2
+                            else:
+                                _index += 1
+                    elif split[0] == "bestmove":
+                        _CURR_BEST_MOVE = split[1]
+                        _READ_FEN_COUNT += 1
+                        
+                        _STORAGE[_READING_FEN] = (_CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH)
+                
+                _raise_event()
 
     sys.exit(0)
+
+
+def _raise_event():
+    try:
+        _ROOT.event_generate("<<Analysis-Update>>")
+    except:
+        sys.exit(0)
 
 
 def CurrentAnalysis():
@@ -203,6 +221,11 @@ def SetFen(FEN):
     global _WAITING_FOR_UPDATE_WRITE
     global _WRITTEN_FEN_COUNT
     global _PRIMED_FEN
+    global _STORAGE
+    global _CURR_EVAL
+    global _CURR_BEST_MOVE
+    global _READING_FEN
+
 
     _PRIMED_FEN = FEN
     _NEW_FEN_BOOL = True
@@ -230,12 +253,11 @@ def RateMove(FEN_before, FEN_after):
         score_before = _STORAGE[FEN_before][0]
 
         if type(score_after) == str or type(score_before) == str:
-            pass
+            return
 
-        print("CATEGORY: %s" % (_categorize_move(score_before, -score_after)))
-        print("New best move: %s" % (_STORAGE[FEN_after][1]))
+        #print("CATEGORY: %s" % (_categorize_move(score_before, -score_after)))
+        #print("New best move: %s" % (_STORAGE[FEN_after][1]))
     except KeyError:
-        print("Pushing back 1s")
         _ROOT.after(1000, RateMove, FEN_before, FEN_after)
 
 
