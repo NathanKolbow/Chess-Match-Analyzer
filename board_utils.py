@@ -4,6 +4,8 @@ import analysis
 import threading
 from math import sqrt
 
+_STARTING_POS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
 _IMG_FOLDER = "pieces_wooden"
 _IMG_DIM = -1 # dimension of the piece images, i.e. 100x100
 
@@ -157,7 +159,7 @@ def SetPosFromFEN(FEN):
 	_CURR_DATA = _data_from_fen(FEN)
 	_draw_board()
 
-def _xy_to_rank_file(x, y):
+def _x_to_file(x):
 	if x == 0:
 		file = "a"
 	elif x == 1:
@@ -174,30 +176,35 @@ def _xy_to_rank_file(x, y):
 		file = "g"
 	elif x == 7:
 		file = "h"
+	return file
 
-	return "%s%s" % (file, y+1)
+def _file_to_x(x):
+	print('x: ' + str(x))
+	if x == 'a':
+		row = 0
+	elif x == 'b':
+		row = 1
+	elif x == 'c':
+		row = 2
+	elif x == 'd':
+		row = 3
+	elif x == 'e':
+		row = 4
+	elif x == 'f':
+		row = 5
+	elif x == 'g':
+		row = 6
+	elif x == 'h':
+		row = 7
+	return row
+
+def _xy_to_rank_file(x, y):
+	return "%s%s" % (_x_to_file(x), y+1)
 
 def _rank_file_to_xy(rankfile):
 	if rankfile == '-':
 		return '-'
-	if rankfile[0] == 'a':
-		row = 0
-	elif rankfile[0] == 'b':
-		row = 1
-	if rankfile[0] == 'c':
-		row = 2
-	elif rankfile[0] == 'd':
-		row = 3
-	if rankfile[0] == 'e':
-		row = 4
-	elif rankfile[0] == 'f':
-		row = 5
-	if rankfile[0] == 'g':
-		row = 6
-	elif rankfile[0] == 'h':
-		row = 7
-
-	return (row, int(rankfile[1])-1)
+	return (_file_to_x(rankfile[0]), int(rankfile[1])-1)
 
 def _board_image_coords_to_xy(x, y):
 	y = _SIZE-y
@@ -477,17 +484,19 @@ def _board_mouse_one_release(event):
 	_draw_board()
 
 
-def _make_move(_MOVING_FROM, moving_to):
+def _make_move(moving_from, moving_to):
+	print("MAKING MOVE: (%s, %s) to (%s, %s)" % (moving_from[0], moving_from[1], moving_to[0], moving_to[1]))
 	x = moving_to[0]
 	y = moving_to[1]
 
+	moving_piece = _get_piece(moving_from[0], moving_from[1])
 	# Update the value for en passant
-	if _MOVING_PIECE == 'p' or _MOVING_PIECE == 'P':
-		if abs(y - _MOVING_FROM[1]) == 2:
-			_CURR_DATA['en passant'] = (_MOVING_FROM[0], _MOVING_FROM[1]+1 if _MOVING_PIECE == 'P' else _MOVING_FROM[1]-1)
+	if moving_piece == 'p' or moving_piece == 'P':
+		if abs(y - moving_from[1]) == 2:
+			_CURR_DATA['en passant'] = (moving_from[0], moving_from[1]+1 if moving_piece == 'P' else moving_from[1]-1)
 		else:
 			if _CURR_DATA['en passant'] != '-' and _CURR_DATA['en passant'][0] == x and _CURR_DATA['en passant'][1] == y:
-				if _MOVING_PIECE == 'p':
+				if moving_piece == 'p':
 					_set_piece(x, y+1, '')
 				else:
 					_set_piece(x, y-1, '')
@@ -496,53 +505,54 @@ def _make_move(_MOVING_FROM, moving_to):
 		
 
 	# Increment the move counts
-	if _MOVING_PIECE.islower():
+	if moving_piece.islower():
 		_CURR_DATA['move counts'][1] = _CURR_DATA['move counts'][1] + 1
-	if _get_piece(x, y) != '' or _MOVING_PIECE == 'p' or _MOVING_PIECE == 'P':
+	if _get_piece(x, y) != '' or moving_piece == 'p' or moving_piece == 'P':
 		_CURR_DATA['move counts'][0] = 0
 	else:
 		_CURR_DATA['move counts'][0] = _CURR_DATA['move counts'][0] + 1
 
 	
 	# Move the actual piece (if anything is taken, it's overwritten in this process)
-	_set_piece(x, y, _MOVING_PIECE)
-	_set_piece(_MOVING_FROM[0], _MOVING_FROM[1], '')
+	_set_piece(x, y, moving_piece)
+	_set_piece(moving_from[0], moving_from[1], '')
 	# Remove castling rights if necessary
-	if _MOVING_PIECE == 'R':
-		if 'Q' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 0 and _MOVING_FROM[1] == 0:
+	if moving_piece == 'R':
+		if 'Q' in _CURR_DATA['castling'] and moving_from[0] == 0 and moving_from[1] == 0:
 			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('Q', '')
-		elif 'K' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 7 and _MOVING_FROM[1] == 0:
+		elif 'K' in _CURR_DATA['castling'] and moving_from[0] == 7 and moving_from[1] == 0:
 			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('K', '')
-	elif _MOVING_PIECE == 'r':
-		if 'q' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 0 and _MOVING_FROM[1] == 7:
+	elif moving_piece == 'r':
+		if 'q' in _CURR_DATA['castling'] and moving_from[0] == 0 and moving_from[1] == 7:
 			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('q', '')
-		elif 'k' in _CURR_DATA['castling'] and _MOVING_FROM[0] == 7 and _MOVING_FROM[1] == 7:
+		elif 'k' in _CURR_DATA['castling'] and moving_from[0] == 7 and moving_from[1] == 7:
 			_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('k', '')
 	# Special case for castling
-	elif _MOVING_PIECE == 'k':
+	elif moving_piece == 'k':
 		_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('k', '').replace('q', '')
-		if abs(_MOVING_FROM[0] - x) == 2:
+		if abs(moving_from[0] - x) == 2:
 			if x == 2:
 				_set_piece(0, 7, '')
 				_set_piece(3, 7, 'r')
 			else:
 				_set_piece(7, 7, '')
 				_set_piece(5, 7, 'r')
-	elif _MOVING_PIECE == 'K':
+	elif moving_piece == 'K':
 		_CURR_DATA['castling'] = _CURR_DATA['castling'].replace('K', '').replace('Q', '')
-		if abs(_MOVING_FROM[0] - x) == 2:
+		if abs(moving_from[0] - x) == 2:
 			if x == 2:
 				_set_piece(0, 0, '')
 				_set_piece(3, 0, 'R')
 			else:
 				_set_piece(7, 0, '')
 				_set_piece(5, 0, 'R')
-	elif (_MOVING_PIECE == 'p' and y == 0) or (_MOVING_PIECE == 'P' and y == 7):
+	elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
 		# Auto-queen
-		_set_piece(x, y, 'q' if _MOVING_PIECE == 'p' else 'Q')
+		_set_piece(x, y, 'q' if moving_piece == 'p' else 'Q')
 
 	# Update whose turn it is
 	_CURR_DATA['turn'] = 'b' if _CURR_DATA['turn'] == 'w' else 'w'
+	_CURR_DATA['fen'] = _get_curr_fen()
 
 
 
@@ -1046,3 +1056,126 @@ def _is_in_check(side):
 					return True
 
 	return False
+
+
+_PGN_INDEX = 0
+def PGNNext():
+	global _PGN_INDEX
+	global _PGN_DATA
+
+	if _PGN_INDEX + 1 < len(_PGN_DATA):
+		_PGN_INDEX += 1
+		SetPosFromFEN(_PGN_DATA[_PGN_INDEX])
+
+
+def PGNBack():
+	global _PGN_INDEX
+	global _PGN_DATA
+	
+	if _PGN_INDEX > 0:
+		_PGN_INDEX -= 1
+		SetPosFromFEN(_PGN_DATA[_PGN_INDEX])
+
+
+_PGN_DATA = []
+def _pgn_to_fen_list(PGN):
+	SetPosFromFEN(_STARTING_POS_FEN)
+	_PGN_DATA.append(_CURR_DATA['fen'])
+
+	i = 0
+	white = True
+	while i < len(PGN):
+		print('i at: %s/%s' % (i, len(PGN) - 1))
+		if PGN[i] == '{':
+			while PGN[i] != '}':
+				i += 1
+		elif PGN[i] == ';':
+			while PGN[i] != '\n':
+				i += 1
+		elif PGN[i] == '[':
+			print("Skipping...")
+			while PGN[i] != ']':
+				print("looping...")
+				""" TODO: Implement actually reading the tag info here; all used tags are listed on https://en.wikipedia.org/wiki/Portable_Game_Notation#Tag_pairs """
+				i += 1
+		elif PGN[i] == '\n':
+			pass
+		elif PGN[i] == ' ':
+			pass
+		else:
+			_index = 0
+			move = ""
+			while i < len(PGN) and PGN[i] != ' ':
+				move += PGN[i]
+				i += 1
+
+			if not '.' in move:
+				if move[_index] == 'K':
+					moving_piece = 'K'
+				elif move[_index] == 'Q':
+					moving_piece = 'Q'
+				elif move[_index] == 'R':
+					moving_piece = 'R'
+				elif move[_index] == 'N':
+					moving_piece = 'N'
+				elif move[_index] == 'B':
+					moving_piece = 'B'
+				else:
+					moving_piece = 'P'
+					_index -= 1 # counteract the coming += 1
+				_index += 1
+
+				move = move[_index:len(move)]
+				if not white:
+					moving_piece = moving_piece.lower()
+
+				promotion = ""
+				if '=' in move:
+					move = move.split('=')
+					promotion = move[1] if white else move[1].lower()
+					move = move[0]
+
+				from_rank = None
+				from_file = None
+				if 'x' in move:
+					take_from = move.split('x')[0]
+					if len(take_from) == 1:
+						if type(take_from) == int:
+							from_rank = int(take_from)
+						else:
+							from_file = take_from
+
+				to_x, to_y = _rank_file_to_xy(move)
+
+				_make_pgn_move(moving_piece, (to_x, to_y), from_rank, from_file, promotion)
+				_PGN_DATA.append(_CURR_DATA['fen'])
+				white = not white
+				print('Appending %s' % (_CURR_DATA['fen']))
+
+		i += 1
+
+	print('Done loading PGN.')
+
+
+def _make_pgn_move(moving_piece, loc, from_rank, from_file, promotion):
+	if from_file != None:
+		for j in range(0, 8):
+			if _get_piece(_file_to_x(from_file), j) == moving_piece:
+				_make_move((_file_to_x(from_file), j), loc)
+				return
+
+	elif from_rank != None:
+		for i in range(0, 8):
+			if _get_piece(i, from_rank) == moving_piece:
+				_make_move((i, from_rank), loc)
+				return
+
+	else:
+		for i in range(0, 8):
+			for j in range(0, 8):
+				if _get_piece(i, j) == moving_piece:
+					if loc in _get_legal_moves(i, j):
+						_make_move((i, j), loc)
+						return
+
+	print("Help me, I'm lost! Info:\n\tmoving_piece:\t %s\n\tloc:\t%s\n\tfrom_rank:\t%s\n\tfrom_file:\t%s\n\tpromotion:\t%s\n")

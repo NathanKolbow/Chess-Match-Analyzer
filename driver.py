@@ -60,14 +60,15 @@ def run():
 	analysis.SetFen(_STARTING_POS_FEN)
 
 	butil.SetPosFromFEN(_STARTING_POS_FEN)
+	butil._pgn_to_fen_list("1. d4 d5 2. e4 e5 3. exd5 Nf6 4. Bb5+ Bd7 5. Bxd7+ Qxd7 6. dxe5")
 
 	while True:
 		event, values = window.read()
 		
 		if event == 'Next':
-			butil.SetPosFromFEN(_STARTING_POS_FEN)
+			butil.PGNNext()
 		elif event == 'Back':
-			pass
+			butil.PGNBack()
 		elif event == sg.WIN_CLOSED:
 			break
 
