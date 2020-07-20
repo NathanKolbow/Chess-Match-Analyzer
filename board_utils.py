@@ -179,7 +179,6 @@ def _x_to_file(x):
 	return file
 
 def _file_to_x(x):
-	print('x: ' + str(x))
 	if x == 'a':
 		row = 0
 	elif x == 'b':
@@ -484,7 +483,7 @@ def _board_mouse_one_release(event):
 	_draw_board()
 
 
-def _make_move(moving_from, moving_to):
+def _make_move(moving_from, moving_to, promotion='q'):
 	print("MAKING MOVE: (%s, %s) to (%s, %s)" % (moving_from[0], moving_from[1], moving_to[0], moving_to[1]))
 	x = moving_to[0]
 	y = moving_to[1]
@@ -547,8 +546,8 @@ def _make_move(moving_from, moving_to):
 				_set_piece(7, 0, '')
 				_set_piece(5, 0, 'R')
 	elif (moving_piece == 'p' and y == 0) or (moving_piece == 'P' and y == 7):
-		# Auto-queen
-		_set_piece(x, y, 'q' if moving_piece == 'p' else 'Q')
+		# Promote the pawn
+		_set_piece(x, y, promotion.lower() if moving_piece == 'p' else promotion.upper())
 
 	# Update whose turn it is
 	_CURR_DATA['turn'] = 'b' if _CURR_DATA['turn'] == 'w' else 'w'
@@ -1066,6 +1065,7 @@ def PGNNext():
 	if _PGN_INDEX + 1 < len(_PGN_DATA):
 		_PGN_INDEX += 1
 		SetPosFromFEN(_PGN_DATA[_PGN_INDEX])
+		analysis.SetFen(_PGN_DATA[_PGN_INDEX])
 
 
 def PGNBack():
@@ -1075,6 +1075,7 @@ def PGNBack():
 	if _PGN_INDEX > 0:
 		_PGN_INDEX -= 1
 		SetPosFromFEN(_PGN_DATA[_PGN_INDEX])
+		analysis.SetFen(_PGN_DATA[_PGN_INDEX])
 
 
 _PGN_DATA = []
@@ -1102,6 +1103,8 @@ def _pgn_to_fen_list(PGN):
 			pass
 		elif PGN[i] == ' ':
 			pass
+		elif _is_int(PGN[i]) or PGN[i] == '.':
+			pass
 		else:
 			_index = 0
 			move = ""
@@ -1109,7 +1112,23 @@ def _pgn_to_fen_list(PGN):
 				move += PGN[i]
 				i += 1
 
-			if not '.' in move:
+			if 'O-O' in move:
+				if move == 'O-O':
+					if white:
+						_make_move((4, 0), (6, 0))
+					else:
+						_make_move((4, 7), (6, 7))
+				elif move == 'O-O-O':
+					if white:
+						_make_move((4, 0), (2, 0))
+					else:
+						_make_move((4, 7), (2, 7))
+			else:
+				if '+' in move:
+					move = move.split('+')[0]
+				elif '#' in move:
+					move = move.split('#')[0]
+
 				if move[_index] == 'K':
 					moving_piece = 'K'
 				elif move[_index] == 'Q':
@@ -1138,44 +1157,65 @@ def _pgn_to_fen_list(PGN):
 				from_rank = None
 				from_file = None
 				if 'x' in move:
-					take_from = move.split('x')[0]
+					move = move.split('x')
+					take_from = move[0]
+					move = move[1]
 					if len(take_from) == 1:
-						if type(take_from) == int:
+						if _is_int(take_from):
 							from_rank = int(take_from)
 						else:
 							from_file = take_from
+				elif len(move) == 3:
+					if _is_int(move[0]):
+						from_rank = int(move[0])
+					else:
+						from_file = move[0]
+					move = move[1:3]
+					
 
 				to_x, to_y = _rank_file_to_xy(move)
 
 				_make_pgn_move(moving_piece, (to_x, to_y), from_rank, from_file, promotion)
-				_PGN_DATA.append(_CURR_DATA['fen'])
-				white = not white
-				print('Appending %s' % (_CURR_DATA['fen']))
-
+				
+			_PGN_DATA.append(_CURR_DATA['fen'])
+			white = not white
+				
 		i += 1
 
 	print('Done loading PGN.')
+
+
+def _is_int(string):
+	try:
+		int(string)
+		return True
+	except ValueError:
+		return False
 
 
 def _make_pgn_move(moving_piece, loc, from_rank, from_file, promotion):
 	if from_file != None:
 		for j in range(0, 8):
 			if _get_piece(_file_to_x(from_file), j) == moving_piece:
-				_make_move((_file_to_x(from_file), j), loc)
-				return
+				if loc in _get_legal_moves(_file_to_x(from_file), j):
+					_make_move((_file_to_x(from_file), j), loc, promotion=promotion)
+					return
 
 	elif from_rank != None:
+		from_rank += -1
 		for i in range(0, 8):
 			if _get_piece(i, from_rank) == moving_piece:
-				_make_move((i, from_rank), loc)
-				return
+				if loc in _get_legal_moves(i, from_rank):
+					_make_move((i, from_rank), loc, promotion=promotion)
+					return
 
 	else:
 		for i in range(0, 8):
 			for j in range(0, 8):
 				if _get_piece(i, j) == moving_piece:
 					if loc in _get_legal_moves(i, j):
-						_make_move((i, j), loc)
+						_make_move((i, j), loc, promotion=promotion)
 						return
 
-	print("Help me, I'm lost! Info:\n\tmoving_piece:\t %s\n\tloc:\t%s\n\tfrom_rank:\t%s\n\tfrom_file:\t%s\n\tpromotion:\t%s\n")
+	print("Help me, I'm lost! Info:\n\tmoving_piece:\t %s\n\tloc:\t(%s, %s)\n\tfrom_rank:\t%s\n\tfrom_file:\t%s\n\tpromotion:\t%s\n"
+			% (moving_piece, loc[0], loc[1], from_rank, from_file, promotion))

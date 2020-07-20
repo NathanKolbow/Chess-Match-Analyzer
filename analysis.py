@@ -235,8 +235,8 @@ def RateMove(FEN_before, FEN_after):
         print("CATEGORY: %s" % (_categorize_move(score_before, -score_after)))
         print("New best move: %s" % (_STORAGE[FEN_after][1]))
     except KeyError:
-        print("Pushing back 300ms")
-        _ROOT.after(300, RateMove, FEN_before, FEN_after)
+        print("Pushing back 1s")
+        _ROOT.after(1000, RateMove, FEN_before, FEN_after)
 
 
 # Takes the raw analysis value from before and after the move BOTH RELATIVE

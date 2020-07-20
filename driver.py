@@ -60,7 +60,7 @@ def run():
 	analysis.SetFen(_STARTING_POS_FEN)
 
 	butil.SetPosFromFEN(_STARTING_POS_FEN)
-	butil._pgn_to_fen_list("1. d4 d5 2. e4 e5 3. exd5 Nf6 4. Bb5+ Bd7 5. Bxd7+ Qxd7 6. dxe5")
+	butil._pgn_to_fen_list("[Some tag in here] 1. a4 a6 2. h4 Nc6 3. Ra3 Nb8 4. Rhh3 Nc6 5. Rae3 Nb8 6. Re6 Nc6 7. Rhe3 Nb8 8. R6e4 Nc6 9. Rc3 Nb8 10. Rcc4 Nc6 11. Red4 Nb8 12. Rg4")
 
 	while True:
 		event, values = window.read()
