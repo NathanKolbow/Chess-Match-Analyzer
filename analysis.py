@@ -48,7 +48,7 @@ def Close():
     global _NEW_FEN_BOOL
     global _ALIVE
 
-    _write('quit\n')
+    _write('quit\n', _PROC)
 
     _ALIVE = False
     _ANALYZING = False
@@ -85,7 +85,7 @@ def _writing_thread_run():
     global _NEW_FEN_BOOL
     global _WRITTEN_FEN_COUNT
 
-    _write('uci\n')
+    _write('uci\n', _PROC)
 
     while _ALIVE:
         while not _NEW_FEN_BOOL:
@@ -102,13 +102,13 @@ def _writing_thread_run():
         """ TODO: Add a mechanism that can make it so that stop is not run until the current analysis is totally finished
                       * this probably involves using another condition variable for when bestmove is found in the read thread """
         # We have a new FEN now
-        _write('stop\n')
+        _write('stop\n', _PROC)
 
         _WRITING_FEN = _PRIMED_FEN
         _NEW_FEN_BOOL = False
 
-        _write('position fen ' + _WRITING_FEN + '\n')
-        _write('go depth ' + str(_DEPTH) + '\n')
+        _write('position fen ' + _WRITING_FEN + '\n', _PROC)
+        _write('go depth ' + str(_DEPTH) + '\n', _PROC)
 
 
         _WAITING_FOR_UPDATE_READ.acquire()
@@ -208,6 +208,54 @@ def _raise_event():
         sys.exit(0)
 
 
+def SyncAnalysis(FEN, depth):
+    proc = subprocess.Popen([_UCI_ENGINE_LOC], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    _write('position fen ' + FEN + '\n', proc)
+    _write('go depth ' + str(depth) + '\n', proc)
+
+    score, best_move = _get_sync_score(proc)
+    proc.kill()
+    return score, best_move
+
+
+def _get_sync_score(proc):
+    running = True
+    curr_eval = 0
+    best_move = ""
+    while running:
+        out = str(proc.stdout.read1(-1))[2:-1].replace('\\r', '').split('\\n')
+
+        for item in out:
+            # Split the output so it can be easily parsed
+            split = item.split(' ')
+
+            if split[0] == "" and proc.poll() == 0:
+                # Output isn't being read anymore and the main proc is closed
+                return
+            elif split[0] == "uciok":
+                pass
+            elif split[0] == "info":
+                _index = 1
+
+                # Parse the line
+                while _index < len(split):
+                    if split[_index] == "score":
+                        if split[_index+1] == "cp":
+                            curr_eval = int(split[_index+2])
+                            _index += 3
+                        elif split[_index+1] == "mate":
+                            curr_eval = 'MATE+' + split[_index+2]
+                            _index += 3
+                    else:
+                        _index += 1
+            elif split[0] == "bestmove":
+                best_move = split[1]
+                running = False
+
+    return curr_eval, best_move
+
+
 def CurrentAnalysis():
     global _CURR_EVAL
     global _CURR_BEST_MOVE
@@ -235,11 +283,9 @@ def SetFen(FEN):
     _WAITING_FOR_UPDATE_WRITE.release()
 
 
-def _write(str):
-    global _PROC
-
-    _PROC.stdin.write(str.encode())
-    _PROC.stdin.flush()
+def _write(str, proc):
+    proc.stdin.write(str.encode())
+    proc.stdin.flush()
 
 
 # Takes the FEN before the position was made and the FEN after
