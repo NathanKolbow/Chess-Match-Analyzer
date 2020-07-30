@@ -14,15 +14,18 @@ import subprocess
 import tkinter
 import sys
 from time import sleep
+from globals import *
 
 _READ_THREAD = None
 _WRITE_THREAD = None
-_DEPTH = 25
 _ALIVE = True
 
 _PROC = None
 _UCI_ENGINE_LOC = "engines/stockfish11_win_64.exe"
 _ROOT = None
+
+_STORAGE = {}
+
 
 def Init(root):
     global analysis_thread
@@ -108,7 +111,7 @@ def _writing_thread_run():
         _NEW_FEN_BOOL = False
 
         _write('position fen ' + _WRITING_FEN + '\n', _PROC)
-        _write('go depth ' + str(_DEPTH) + '\n', _PROC)
+        _write('go depth ' + str(DEPTH) + '\n', _PROC)
 
 
         _WAITING_FOR_UPDATE_READ.acquire()
@@ -208,13 +211,19 @@ def _raise_event():
         sys.exit(0)
 
 
-def SyncAnalysis(FEN, depth):
+def SyncAnalysis(FEN):
+    global _STORAGE
+    if FEN in _STORAGE and _STORAGE[FEN][2] >= DEPTH:
+        return _STORAGE[FEN][0], _STORAGE[FEN][1]
+
     proc = subprocess.Popen([_UCI_ENGINE_LOC], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
     _write('position fen ' + FEN + '\n', proc)
-    _write('go depth ' + str(depth) + '\n', proc)
+    _write('go depth ' + str(DEPTH) + '\n', proc)
 
     score, best_move = _get_sync_score(proc)
+    _STORAGE[FEN] = (score, best_move, DEPTH)
+
     proc.kill()
     return score, best_move
 
@@ -288,37 +297,58 @@ def _write(str, proc):
     proc.stdin.flush()
 
 
-# Takes the FEN before the position was made and the FEN after
-# the position was made as input
-_STORAGE = {}
-def RateMove(FEN_before, FEN_after):
-    global _STORAGE
-
-    try:
-        score_after = _STORAGE[FEN_after][0]
-        score_before = _STORAGE[FEN_before][0]
-
-        if type(score_after) == str or type(score_before) == str:
-            return
-
-        #print("CATEGORY: %s" % (_categorize_move(score_before, -score_after)))
-        #print("New best move: %s" % (_STORAGE[FEN_after][1]))
-    except KeyError:
-        _ROOT.after(1000, RateMove, FEN_before, FEN_after)
-
-
 # Takes the raw analysis value from before and after the move BOTH RELATIVE
 # TO THE PERSON THAT MADE THE MOVE, this should ONLY be run if the move was
 # NOT the best move in the position
 def _categorize_move(score_before, score_after):
-    diff = abs(score_after - score_before)
-    if diff > 250:
-        return 'blunder'
-    elif diff > 130:
-        return 'mistake'
-    elif diff > 80:
-        return 'inacurracy'
-    elif diff > 10:
-        return 'good'
+    if type(score_after) == str and '0' in score_after:
+        if '0' in score_after:
+            return BEST_MOVE
+
+
+    if type(score_before) == str:
+        if '+' in score_before:
+            if type(score_after) == str:
+                if '+' in score_after:
+                    # TODO: check numbers
+                    return EXCELLENT
+                else:
+                    return BLUNDER
+            else:
+                if score_after > 1000:  
+                    return EXCELLENT
+                elif score_after > 300:
+                    return GOOD
+                else:
+                    return BLUNDER
+        elif '-' in score_before:
+            if type(score_after) == str:
+                if '-' in score_after:
+                    # TODO: check numbers
+                    return EXCELLENT
+                else:
+                    return EXCELLENT
+            else:
+                return EXCELLENT
+
+
+    if type(score_after) == str:
+        # only hits here if score_before was not a str (i.e. there was not a mating situation before this)
+        if '-' in score_after:
+            return BLUNDER
+        else:
+            return BRILLIANT
+
+    diff = score_after - score_before
+    if diff < -250:
+        return BLUNDER
+    elif diff < -130:
+        return MISTAKE
+    elif diff < -30:
+        return INACCURACY
+    elif diff < -15:
+        return GOOD
+    elif diff <= 10:
+        return EXCELLENT
     else:
-        return 'excellent'
+        return BRILLIANT

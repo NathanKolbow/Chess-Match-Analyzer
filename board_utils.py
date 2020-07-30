@@ -2,7 +2,12 @@ import PySimpleGUI as sg
 import tkinter
 import analysis
 import threading
-from math import sqrt
+from math import sqrt, acos, floor, cos, sin
+import sys, traceback
+from PIL import Image
+from globals import *
+import base64
+from io import BytesIO
 
 _STARTING_POS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -40,19 +45,23 @@ __ANALYSIS_TEXT__ = "0.0"
 _ROOT = None
 _SIZE = 0
 
-def Init(graph, bar, root, size):
-	global _ROOT
-	_ROOT = root
+_FOCUS_CURRENT = False
+_BOARD_LOCK = False
 
-	graph.Widget.bind("<Motion>", _board_motion_event)
-	graph.Widget.bind("<Button-1>", _board_mouse_one)
-	graph.Widget.bind("<B1-Motion>", _board_mouse_one_drag)
-	graph.Widget.bind("<ButtonRelease-1>", _board_mouse_one_release)
-	graph.Widget.bind("<Button-3>", _board_mouse_three)
+
+def Init(window, size):
+	global _ROOT
+	_ROOT = window.TKroot
+
+	window['board-graph'].Widget.bind("<Motion>", _board_motion_event)
+	window['board-graph'].Widget.bind("<Button-1>", _board_mouse_one)
+	window['board-graph'].Widget.bind("<B1-Motion>", _board_mouse_one_drag)
+	window['board-graph'].Widget.bind("<ButtonRelease-1>", _board_mouse_one_release)
+	window['board-graph'].Widget.bind("<Button-3>", _board_mouse_three)
 
 	global _BOARD_GRAPH
 	global _CURR_DATA
-	_BOARD_GRAPH = graph
+	_BOARD_GRAPH = window['board-graph']
 
 
 	global __ANALYSIS_GRAPH__
@@ -67,15 +76,17 @@ def Init(graph, bar, root, size):
 	_SIZE = size
 	_IMG_DIM = int(_SIZE / 8)
 
-	__ANALYSIS_GRAPH__ = bar
-	__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, size), fill_color='white', line_color='black')
-	__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, size), (50, size/2), fill_color='gray')
-	__ANALYSIS_GRAPH__.DrawRectangle((0, size/2+1), (50, size/2), fill_color='black', line_color='black')
-	__ANALYSIS_TEXT__ = __ANALYSIS_GRAPH__.DrawText("0.0", (17, 10), text_location=sg.TEXT_LOCATION_BOTTOM_LEFT, font='Courier 9')
+	
+	__ANALYSIS_GRAPH__ = window.FindElement('analysis-graph', silent_on_error=True)
+	if __ANALYSIS_GRAPH__ != None:
+		__ANALYSIS_GRAPH__.DrawRectangle((0, 0), (50, size), fill_color='white', line_color='black')
+		__ANALYSIS_RECT__ = __ANALYSIS_GRAPH__.DrawRectangle((0, size), (50, size/2), fill_color='gray')
+		__ANALYSIS_GRAPH__.DrawRectangle((0, size/2+1), (50, size/2), fill_color='black', line_color='black')
+		__ANALYSIS_TEXT__ = __ANALYSIS_GRAPH__.DrawText("0.0", (17, 10), text_location=sg.TEXT_LOCATION_BOTTOM_LEFT, font='Courier 9')
 
-	_ROOT.bind("<<Analysis-Update>>", AnalysisEvent)
-	_ROOT.bind("<<Bar-Animation>>", _set_bar_height)
-
+		_ROOT.bind("<<Analysis-Update>>", AnalysisEvent)
+		_ROOT.bind("<<Bar-Animation>>", _set_bar_height)
+	
 
 _ANIMATING = False
 def _set_bar_height(y):
@@ -151,6 +162,9 @@ def SetPosFromFEN(FEN):
 	_CURR_DATA = _data_from_fen(FEN)
 	_draw_board()
 
+	global _BOARD_LOCK
+	_BOARD_LOCK = False
+
 def _x_to_file(x):
 	if x == 0:
 		file = "a"
@@ -189,13 +203,16 @@ def _file_to_x(x):
 		row = 7
 	return row
 
+
 def _xy_to_rank_file(x, y):
 	return "%s%s" % (_x_to_file(x), y+1)
+
 
 def _rank_file_to_xy(rankfile):
 	if rankfile == '-':
 		return '-'
 	return (_file_to_x(rankfile[0]), int(rankfile[1])-1)
+
 
 def _board_image_coords_to_xy(x, y):
 	y = _SIZE-y
@@ -205,9 +222,11 @@ def _board_image_coords_to_xy(x, y):
 	else:
 		return int(7 - x // (_SIZE/8)), int(7 - y // (_SIZE/8))
 
-def _board_image_coords(row, column):
+
+def _xy_to_board_image_coords(row, column):
 	# 0-indexed
 	return (row * (_SIZE/8), (_SIZE/8) + column * (_SIZE/8))
+
 
 def AnalysisEvent(event):
 	eval, best_move, fen = analysis.CurrentAnalysis()
@@ -329,18 +348,39 @@ def _draw_board():
 	global _CURR_DATA
 	global _LAST_MOVE_FROM
 	global _LAST_MOVE_TO
+	global _WRONG_FROM
+	global _WRONG_TO
+	global _WRONG_TYPE
 
+	if _BOARD_GRAPH == None:
+		return
+	
 	_BOARD_GRAPH.erase()
 	# _BOARD_GRAPH is necessarily the 800x800 board used in run()
+	"""
+		Method for reading in images, resizing, then drawing to the graph, will be useful in late-game development
+
+	board_img = Image.open(_IMG_FOLDER + "/board.png")
+	board_img = board_img.resize((400, 400))
+
+	buffered = BytesIO()
+	board_img.save(buffered, format="PNG")
+	img_str = base64.b64encode(buffered.getvalue())
+
+	_BOARD_GRAPH.DrawImage(data=img_str, location=(0, _SIZE))
+	"""
 	_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/board.png", location=(0, _SIZE))
 
+	# Draw last move squares
 	if _LAST_MOVE_FROM != (-1, -1):
-		bottom_corner_from = _board_image_coords(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1])
-		bottom_corner_to = _board_image_coords(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1])
+		bottom_corner_from = _xy_to_board_image_coords(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1])
+		bottom_corner_to = _xy_to_board_image_coords(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1])
 
 		_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/last_move.png", location=bottom_corner_from)
 		_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/last_move.png", location=bottom_corner_to)
 
+
+	# Draw pieces
 	board = _CURR_DATA['board']
 	transparent = (-1, -1) if not dragging else (_MOVING_FROM[0], _MOVING_FROM[1])
 	for i in range(0, 8): # ranks, starting from the 8th rank
@@ -348,9 +388,9 @@ def _draw_board():
 
 			if not board[i][j] == '':
 				if _PERSPECTIVE == 'w':
-					locx, locy = _board_image_coords(j, i)
+					locx, locy = _xy_to_board_image_coords(j, i)
 				else:
-					locx, locy = _board_image_coords(7-j, 7-i)
+					locx, locy = _xy_to_board_image_coords(7-j, 7-i)
 
 				if transparent == (j, i):
 					_draw_piece(board[i][j], (locx, locy), False)
@@ -358,6 +398,106 @@ def _draw_board():
 					_draw_piece(board[i][j], (locx, locy), True)
 
 
+	# Draw wrong move arrow
+	if _WRONG_FROM != (-1, -1):
+		if _WRONG_TYPE == BEST_MOVE:
+			color = BEST_MOVE_COLOR
+		elif _WRONG_TYPE == BRILLIANT:
+			color = BRILLIANT_COLOR
+		elif _WRONG_TYPE == EXCELLENT:
+			color = EXCELLENT_COLOR
+		elif _WRONG_TYPE == GOOD:
+			color = GOOD_COLOR
+		elif _WRONG_TYPE == INACCURACY:
+			color = INACCURACY_COLOR
+		elif _WRONG_TYPE == MISTAKE:
+			color = MISTAKE_COLOR
+		elif _WRONG_TYPE == BLUNDER:
+			color = BLUNDER_COLOR
+		else:
+			# This should never be reached
+			color = 'black'
+
+		from_point = _xy_to_board_image_coords(_WRONG_FROM[0], _WRONG_FROM[1])
+		from_point = (from_point[0] + _IMG_DIM / 2, from_point[1] - _IMG_DIM / 2)
+
+		to_point = _xy_to_board_image_coords(_WRONG_TO[0], _WRONG_TO[1])
+		to_point = (to_point[0] + _IMG_DIM / 2, to_point[1] - _IMG_DIM / 2)
+
+		# Draw arrow head
+		angle = _angle((to_point[0] - from_point[0], to_point[1] - from_point[1]), (1, 0))
+		if to_point[1] - from_point[1] < 0:
+			angle *= -1
+
+		p1theta = 0 + angle
+		p2theta = 2.1 + angle
+		p3theta = 4.2 + angle
+
+		"""r = 15
+
+		p1x = r * cos(p1theta)
+		p1y = r * sin(p1theta)
+		p2x = r * cos(p2theta)
+		p2y = r * sin(p2theta)
+		p3x = r * cos(p3theta)
+		p3y = r * sin(p3theta)
+
+		p1 = (p1x + to_point[0], p1y + to_point[1])
+		p2 = (p2x + to_point[0], p2y + to_point[1])
+		p3 = (p3x + to_point[0], p3y + to_point[1])
+
+		# Draw outlines
+		_BOARD_GRAPH.DrawPolygon([p1, p2, p3], fill_color='black')
+		_BOARD_GRAPH.DrawLine(from_point, to_point, color='black', width=8)"""
+		
+
+		r = 10
+
+		p1x = r * cos(p1theta)
+		p1y = r * sin(p1theta)
+		p2x = r * cos(p2theta)
+		p2y = r * sin(p2theta)
+		p3x = r * cos(p3theta)
+		p3y = r * sin(p3theta)
+
+		p1 = (p1x + to_point[0], p1y + to_point[1])
+		p2 = (p2x + to_point[0], p2y + to_point[1])
+		p3 = (p3x + to_point[0], p3y + to_point[1])
+
+		# Draw colors
+		_BOARD_GRAPH.DrawPolygon([p1, p2, p3], fill_color=color)
+		_BOARD_GRAPH.DrawLine(from_point, to_point, color=color, width=5)
+
+
+
+	
+"""
+	Following functions from https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python
+"""
+def _dotproduct(v1, v2):
+	return sum((a*b) for a, b in zip(v1, v2))
+
+
+def _length(v):
+	return sqrt(_dotproduct(v, v))
+
+
+def _angle(v1, v2):
+	return acos(_dotproduct(v1, v2) / (_length(v1) * _length(v2)))
+"""
+"""
+
+
+def FocusCurrentPosition(boolean):
+	global _FOCUS_CURRENT
+	_FOCUS_CURRENT = boolean
+
+
+def RetryMove():
+	global _BOARD_LOCK
+
+	_BOARD_LOCK = False
+	pass
 
 
 def _draw_piece(piece, loc, opaque):
@@ -411,6 +551,10 @@ def _board_motion_event(event):
 dragging = False
 dragging_image = None
 def _board_mouse_one_drag(event):
+	global _BOARD_LOCK
+	if _BOARD_LOCK:
+		return
+
 	global _LAST_X
 	global _LAST_Y
 
@@ -421,6 +565,10 @@ def _board_mouse_one_drag(event):
 	_LAST_Y = event.y
 
 def _board_mouse_one(event):
+	global _BOARD_LOCK
+	if _BOARD_LOCK:
+		return
+
 	x, y = _board_image_coords_to_xy(_LAST_X, _LAST_Y)
 	
 	global _LEGAL_MOVES
@@ -453,6 +601,10 @@ def _board_mouse_three(event):
 	pass
 
 def _board_mouse_one_release(event):
+	global _BOARD_LOCK
+	if _BOARD_LOCK:
+		return
+
 	x, y = _board_image_coords_to_xy(_LAST_X, _LAST_Y)
 
 	global _LEGAL_MOVES
@@ -461,32 +613,31 @@ def _board_mouse_one_release(event):
 	global _MOVING_FROM
 	global dragging
 
+	dragging = False
+
 	if _LEGAL_MOVES != None and (x, y) in _LEGAL_MOVES:
-		fen_before = _CURR_DATA['fen']
-
 		_make_move(_MOVING_FROM, (x, y))
-
-		_CURR_DATA['fen'] = _get_curr_fen()
-
-		_ROOT.after(10, analysis.RateMove, fen_before, _CURR_DATA['fen'])
-
 		analysis.SetFen(_CURR_DATA['fen'])
-
-		_LEGAL_MOVES = ()
-		_MOVING_PIECE = None
-		_MOVING_FROM = None
 	else:
 		_LEGAL_MOVES = ()
 		_MOVING_PIECE = None
 		_MOVING_FROM = None
 
-	dragging = False
-	_draw_board()
+	UpdateBoard()
 
 
 _LAST_MOVE_FROM = (-1, -1)
 _LAST_MOVE_Y = (-1, -1)
 def _make_move(moving_from, moving_to, promotion=None):
+	global _BOARD_LOCK
+	global _FOCUS_CURRENT
+	if _BOARD_LOCK:
+		print("How did you get here?")
+		return
+	
+	if _FOCUS_CURRENT:
+		_BOARD_LOCK = True
+
 	x = moving_to[0]
 	y = moving_to[1]
 
@@ -583,9 +734,75 @@ def _make_move(moving_from, moving_to, promotion=None):
 	_LAST_MOVE_FROM = moving_from
 	_LAST_MOVE_TO = moving_to
 
+	prev_fen = _CURR_DATA['fen']
 	# Update whose turn it is
 	_CURR_DATA['turn'] = 'b' if _CURR_DATA['turn'] == 'w' else 'w'
 	_CURR_DATA['fen'] = _get_curr_fen()
+
+	_LEGAL_MOVES = ()
+	_MOVING_PIECE = None
+	_MOVING_FROM = None
+
+	global dragging
+	if not _FOCUS_CURRENT:
+		ResetWrongMove()
+
+
+	if _FOCUS_CURRENT:
+		UpdateBoard()
+		_ROOT.event_generate("<<Eval-Waiting>>")
+
+		old_score, best_move = analysis.SyncAnalysis(prev_fen) # should already be stored, so this should go immediately
+		if best_move[0:2] == _xy_to_rank_file(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1]) and best_move[2:] == _xy_to_rank_file(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1]):
+			_ROOT.event_generate("<<Eval-Done-Best Move>>")
+		else:
+			new_score, _ = analysis.SyncAnalysis(_CURR_DATA['fen'])
+			_ROOT.event_generate("<<Eval-Done-%s>>" % (RatingToStr(analysis._categorize_move(old_score, -new_score 
+												if type(new_score) == int else new_score.replace('-', '+') if '-' in new_score else new_score.replace('+', '-')))))
+
+
+def ResetWrongMove():
+	global _WRONG_FROM
+	global _WRONG_TO
+	global _WRONG_TYPE
+
+	_WRONG_FROM = (-1, -1)
+	_WRONG_TO = (-1, -1)
+	_WRONG_TYPE = ""
+
+
+def ResetLastMove():
+	global _LAST_MOVE_FROM
+	global _LAST_MOVE_TO
+
+	_LAST_MOVE_FROM = (-1, -1)
+	_LAST_MOVE_TO = (-1, -1)
+
+
+def SetLastMove(last_from, last_to):
+	global _LAST_MOVE_FROM
+	global _LAST_MOVE_TO
+
+	_LAST_MOVE_FROM = last_from
+	_LAST_MOVE_TO = last_to
+
+
+_WRONG_FROM = (-1, -1)
+_WRONG_TO = (-1, -1)
+_WRONG_TYPE = ""
+def SetWrongMove(wrong_from, wrong_to, wrong_type):
+	global _WRONG_FROM
+	global _WRONG_TO
+	global _WRONG_TYPE
+
+	_WRONG_FROM = wrong_from
+	_WRONG_TO = wrong_to
+	_WRONG_TYPE = wrong_type
+
+
+def UpdateBoard():
+	_draw_board()
+	_ROOT.update()
 
 
 def _get_legal_moves(x, y):
@@ -1111,17 +1328,38 @@ def PGNBack():
 		analysis.SetFen(_PGN_DATA[_PGN_INDEX])
 
 
+
+def PGNToFENList(PGN):
+	try:
+		return _pgn_to_fen_helper(PGN)
+	except:
+		print("Exception in user code:")
+		traceback.print_exc(file=sys.stdout)
+		return False
+
+
 _PGN_DATA = []
-def _pgn_to_fen_list(PGN):
+def _pgn_to_fen_helper(PGN):
+	PGN = PGN + ' '
+	PGN = PGN.replace('\n', ' ').replace('\r', '')
+
+	global _PGN_DATA
+
 	SetPosFromFEN(_STARTING_POS_FEN)
-	_PGN_DATA.append(_CURR_DATA['fen'])
+	_PGN_DATA.append([])
+	_PGN_DATA[0].append(_CURR_DATA['fen'])
 
 	i = 0
+	move_index = 0
 	white = True
 	while i < len(PGN):
 		if PGN[i] == '{':
 			while PGN[i] != '}':
 				i += 1
+		elif PGN[i] == '(':
+			""" Possible TODO: Implement actually reading in nested lines instead of ignoring them """
+			while PGN[i] != ')':
+				i+= 1
 		elif PGN[i] == ';':
 			while PGN[i] != '\n':
 				i += 1
@@ -1130,6 +1368,7 @@ def _pgn_to_fen_list(PGN):
 				""" TODO: Implement actually reading the tag info here; all used tags are listed on https://en.wikipedia.org/wiki/Portable_Game_Notation#Tag_pairs """
 				i += 1
 		elif PGN[i] == '\n':
+			print("Caught newline")
 			pass
 		elif PGN[i] == ' ':
 			pass
@@ -1146,13 +1385,19 @@ def _pgn_to_fen_list(PGN):
 				if move == 'O-O':
 					if white:
 						_make_move((4, 0), (6, 0))
+						move = ((4, 0), (6, 0))
 					else:
 						_make_move((4, 7), (6, 7))
+						move = ((4, 7), (6, 7))
 				elif move == 'O-O-O':
 					if white:
 						_make_move((4, 0), (2, 0))
+						move = ((4, 0), (2, 0))
 					else:
 						_make_move((4, 7), (2, 7))
+						move = ((4, 7), (2, 7))
+			elif '-' in move:
+				return True
 			else:
 				if '+' in move:
 					move = move.split('+')[0]
@@ -1202,15 +1447,24 @@ def _pgn_to_fen_list(PGN):
 						from_file = move[0]
 					move = move[1:3]
 					
-
 				to_x, to_y = _rank_file_to_xy(move)
 
-				_make_pgn_move(moving_piece, (to_x, to_y), from_rank, from_file, promotion)
-				
-			_PGN_DATA.append(_CURR_DATA['fen'])
+				move = _make_pgn_move(moving_piece, (to_x, to_y), from_rank, from_file, promotion)
+				if move == None:
+					_PGN_DATA = []
+					return False
+			
+			_PGN_DATA.append([])
+
+			_PGN_DATA[move_index+1].append(_CURR_DATA['fen'])
+			_PGN_DATA[move_index].append(move)
+
+			move_index += 1
 			white = not white
 				
 		i += 1
+
+	return True
 
 
 def _is_int(string):
@@ -1227,7 +1481,7 @@ def _make_pgn_move(moving_piece, loc, from_rank, from_file, promotion):
 			if _get_piece(_file_to_x(from_file), j) == moving_piece:
 				if loc in _get_legal_moves(_file_to_x(from_file), j):
 					_make_move((_file_to_x(from_file), j), loc, promotion=promotion)
-					return
+					return ((_file_to_x(from_file), j), loc)
 
 	elif from_rank != None:
 		from_rank += -1
@@ -1235,7 +1489,7 @@ def _make_pgn_move(moving_piece, loc, from_rank, from_file, promotion):
 			if _get_piece(i, from_rank) == moving_piece:
 				if loc in _get_legal_moves(i, from_rank):
 					_make_move((i, from_rank), loc, promotion=promotion)
-					return
+					return ((i, from_rank), loc)
 
 	else:
 		for i in range(0, 8):
@@ -1243,7 +1497,8 @@ def _make_pgn_move(moving_piece, loc, from_rank, from_file, promotion):
 				if _get_piece(i, j) == moving_piece:
 					if loc in _get_legal_moves(i, j):
 						_make_move((i, j), loc, promotion=promotion)
-						return
+						return ((i, j), loc)
 
 	print("Help me, I'm lost! Info:\n\tmoving_piece:\t %s\n\tloc:\t(%s, %s)\n\tfrom_rank:\t%s\n\tfrom_file:\t%s\n\tpromotion:\t%s\n"
 			% (moving_piece, loc[0], loc[1], from_rank, from_file, promotion))
+	return None
