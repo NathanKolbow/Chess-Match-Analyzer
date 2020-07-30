@@ -152,73 +152,55 @@ def run():
 
 
 def _eval_waiting(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color='gray')
-    WINDOW['menu-graph'].DrawText('EVALUATING...', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
-    WINDOW.TKroot.update()
-    WINDOW['RETRY-MOVE'].Update(disabled=True)
+    _update_menu_graph('EVALUATING', 'white', 'gray', 'Calibri\ Bold 24')
 
 
 def _eval_done_best_move(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=BEST_MOVE_COLOR)
-    WINDOW['menu-graph'].DrawText('BEST MOVE', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='black')
-    WINDOW.TKroot.update()
+    _update_menu_graph('BEST MOVE', 'black', BEST_MOVE_COLOR, 'Calibri\ Bold 24')
+    WINDOW['RETRY-MOVE'].Update(disabled=True)
 
 
 def _eval_done_brilliant(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=BRILLIANT_COLOR)
-    WINDOW['menu-graph'].DrawText('BRILLIANT', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
-    WINDOW.TKroot.update()
+    _update_menu_graph('BRILLIANT', 'white', BRILLIANT_COLOR, 'Calibri\ Bold 24')
+    WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_excellent(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=EXCELLENT_COLOR)
-    WINDOW['menu-graph'].DrawText('EXCELLENT', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
-    WINDOW.TKroot.update()
+    _update_menu_graph('EXCELLENT', 'white', EXCELLENT_COLOR, 'Calibri\ Bold 24')
     WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_good(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=GOOD_COLOR)
-    WINDOW['menu-graph'].DrawText('GOOD', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
-    WINDOW.TKroot.update()
+    _update_menu_graph('GOOD', 'white', GOOD_COLOR, 'Calibri\ Bold 24')
     WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_inaccuracy(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=INACCURACY_COLOR)
-    WINDOW['menu-graph'].DrawText('INACCURACY', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
-    WINDOW.TKroot.update()
+    _update_menu_graph('INACCURACY', 'white', INACCURACY_COLOR, 'Calibri\ Bold 24')
     WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_mistake(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=MISTAKE_COLOR)
-    WINDOW['menu-graph'].DrawText('MISTAKE', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
-    WINDOW.TKroot.update()
+    _update_menu_graph('MISTAKE', 'white', MISTAKE_COLOR, 'Calibri\ Bold 24')
     WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_blunder(event):
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=BLUNDER_COLOR)
-    WINDOW['menu-graph'].DrawText('BLUNDER', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
-    WINDOW.TKroot.update()
+    _update_menu_graph('BLUNDER', 'white', BLUNDER_COLOR, 'Calibri\ Bold 24')
     WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _wait_for_move():
-    WINDOW['menu-graph'].Erase()
-    WINDOW['menu-graph'].Update(background_color=BG_COLOR)
-    WINDOW['menu-graph'].DrawText('WAITING FOR A MOVE', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 17', color='white')
-    WINDOW.TKroot.update()
+    _update_menu_graph('WAITING FOR A MOVE', 'white', BG_COLOR, 'Calibri\ Bold 17')
     WINDOW['RETRY-MOVE'].Update(disabled=True)
+
+
+def _update_menu_graph(text, text_color, bg_color, font):
+    WINDOW['menu-graph'].Erase()
+    WINDOW['menu-graph'].Update(background_color=bg_color)
+    WINDOW['menu-graph'].DrawText(text, (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font=font, color=text_color)
+    WINDOW.TKroot.update()
+
 
 
 global _CURR_INDEX
