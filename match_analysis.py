@@ -136,12 +136,8 @@ def run():
 
             thresh = new_thresh
         elif event == 'RETRY-MOVE':
-            print("Retrying move")
-            butil.RetryMove()
-        elif event == '<Eval-Waiting>':
-            print("WAITING FOR EVAL")
-        elif type(event) == str and '<Eval-Done-' in event:
-            print("EVAL DONE: %s" % (event))
+            global _CURR_INDEX
+            _switch_to_move(_CURR_INDEX, _RATINGS)
 
 
             #print("_RATINGS: %s" % (_RATINGS))
@@ -160,6 +156,7 @@ def _eval_waiting(event):
     WINDOW['menu-graph'].Update(background_color='gray')
     WINDOW['menu-graph'].DrawText('EVALUATING...', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
     WINDOW.TKroot.update()
+    WINDOW['RETRY-MOVE'].Update(disabled=True)
 
 
 def _eval_done_best_move(event):
@@ -181,6 +178,7 @@ def _eval_done_excellent(event):
     WINDOW['menu-graph'].Update(background_color=EXCELLENT_COLOR)
     WINDOW['menu-graph'].DrawText('EXCELLENT', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
     WINDOW.TKroot.update()
+    WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_good(event):
@@ -188,6 +186,7 @@ def _eval_done_good(event):
     WINDOW['menu-graph'].Update(background_color=GOOD_COLOR)
     WINDOW['menu-graph'].DrawText('GOOD', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
     WINDOW.TKroot.update()
+    WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_inaccuracy(event):
@@ -195,6 +194,7 @@ def _eval_done_inaccuracy(event):
     WINDOW['menu-graph'].Update(background_color=INACCURACY_COLOR)
     WINDOW['menu-graph'].DrawText('INACCURACY', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
     WINDOW.TKroot.update()
+    WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_mistake(event):
@@ -202,6 +202,7 @@ def _eval_done_mistake(event):
     WINDOW['menu-graph'].Update(background_color=MISTAKE_COLOR)
     WINDOW['menu-graph'].DrawText('MISTAKE', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
     WINDOW.TKroot.update()
+    WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _eval_done_blunder(event):
@@ -209,6 +210,7 @@ def _eval_done_blunder(event):
     WINDOW['menu-graph'].Update(background_color=BLUNDER_COLOR)
     WINDOW['menu-graph'].DrawText('BLUNDER', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 24', color='white')
     WINDOW.TKroot.update()
+    WINDOW['RETRY-MOVE'].Update(disabled=False)
 
 
 def _wait_for_move():
@@ -216,9 +218,14 @@ def _wait_for_move():
     WINDOW['menu-graph'].Update(background_color=BG_COLOR)
     WINDOW['menu-graph'].DrawText('WAITING FOR A MOVE', (50, 50), text_location=sg.TEXT_LOCATION_CENTER, font='Calibri\ Bold 17', color='white')
     WINDOW.TKroot.update()
+    WINDOW['RETRY-MOVE'].Update(disabled=True)
 
 
+global _CURR_INDEX
 def _switch_to_move(index, _RATINGS):
+    global _CURR_INDEX
+    _CURR_INDEX = index
+
     _wait_for_move()
     rating_index = floor(index / 2)
 

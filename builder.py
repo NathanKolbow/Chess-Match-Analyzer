@@ -48,11 +48,12 @@ def AnalysisMenuElements(ratings):
     analysis_menu = [
         [
             sg.Graph(
-                canvas_size=(220, 100),
+                canvas_size=(219, 100),
                 graph_bottom_left=(0, 0),
                 graph_top_right=(100, 100),
                 key='menu-graph',
-                background_color=BG_COLOR
+                background_color=BG_COLOR,
+                pad=((5, 0), (34, 0))
             )
         ],
         columns,
@@ -70,7 +71,7 @@ def AnalysisMenuElements(ratings):
                         [
                             sg.Text('Threshold: ', background_color=BG_COLOR),
                             sg.Combo(('Best move', 'Brilliant', 'Excellent', 'Good', 'Inaccuracy', 'Mistake', 'Blunder'), default_value='Inaccuracy',
-                                        key='threshold-dropdown', enable_events=True)
+                                        key='threshold-dropdown', enable_events=True, font=DEFAULT_FONT)
                         ],
                         [
                             sg.Button('Retry Move', disabled=True, key='RETRY-MOVE')

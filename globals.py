@@ -20,7 +20,7 @@ BLUNDER_COLOR = '#990000'
 DEFAULT_FONT = "Calibri 12"
 DEFAULT_FONT_BOLD = "Calibri\ Bold 12"
 
-DEPTH = 18
+DEPTH = 10
 
 
 def RatingToStr(rating):
