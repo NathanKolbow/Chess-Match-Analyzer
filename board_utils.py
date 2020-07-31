@@ -8,6 +8,7 @@ from PIL import Image
 from globals import *
 import base64
 from io import BytesIO
+import mathemagics
 
 _STARTING_POS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -43,14 +44,21 @@ __RECT_TARGET_Y__ = -1
 __ANALYSIS_TEXT__ = "0.0"
 
 _ROOT = None
+_WINDOW = None
 _SIZE = 0
 
 _FOCUS_CURRENT = False
+_RATE_EACH = False
 _BOARD_LOCK = False
+
+_PROMOTING = False
 
 
 def Init(window, size):
 	global _ROOT
+	global _WINDOW
+	_WINDOW = window
+	print("_WINDOW_1: %s" % (_WINDOW))
 	_ROOT = window.TKroot
 
 	window['board-graph'].Widget.bind("<Motion>", _board_motion_event)
@@ -148,7 +156,7 @@ def _get_curr_fen():
 		if j != 0:
 			out = out + "/"
 
-	out = out + " " + _CURR_DATA['turn'] + " " + _CURR_DATA['castling'] + " "
+	out = out + " " + _CURR_DATA['turn'] + " " + ('-' if _CURR_DATA['castling'] == '' else _CURR_DATA['castling']) + " "
 	if _CURR_DATA['en passant'] == '-':
 		out = out + "- "
 	else:
@@ -162,8 +170,7 @@ def SetPosFromFEN(FEN):
 	_CURR_DATA = _data_from_fen(FEN)
 	_draw_board()
 
-	global _BOARD_LOCK
-	_BOARD_LOCK = False
+	ResetLastMove()
 
 def _x_to_file(x):
 	if x == 0:
@@ -185,6 +192,7 @@ def _x_to_file(x):
 	return file
 
 def _file_to_x(x):
+	x = x.lower()
 	if x == 'a':
 		row = 0
 	elif x == 'b':
@@ -244,7 +252,6 @@ def _adjust_text(string, loc):
 
 
 def _adjust_bar(eval):
-	""" TODO: Check to make sure the settings for mates are correct (they probably aren't) """
 	global _SIZE
 
 	if type(eval) == str:
@@ -280,19 +287,8 @@ def _adjust_bar(eval):
 		_adjust_text(str(adjusted_eval), 
 						(7, 20) if adjusted_eval < 0 else (7, 790))
 		
-		proportion = _transform(eval/100)
+		proportion = mathemagics.Transform(eval/100 if _CURR_DATA['turn'] == 'b' else -eval/100, 17)
 		_set_bar_height(_SIZE * proportion)
-		
-
-
-def _transform(eval):
-	if _CURR_DATA['turn'] == 'w':
-		eval = -eval
-
-	if eval > 17:
-		return 0.95
-	else:
-		return max(min(0.98 * pow(2.72, -((pow(eval - 13.5, 2))/263)) + 0.01, 0.95), 0.05)
 
 
 def _data_from_fen(FEN):
@@ -351,6 +347,9 @@ def _draw_board():
 	global _WRONG_FROM
 	global _WRONG_TO
 	global _WRONG_TYPE
+	global _SOLUTION_FROM
+	global _SOLUTION_TO
+	global _SOLUTION_PIECE
 
 	if _BOARD_GRAPH == None:
 		return
@@ -392,7 +391,9 @@ def _draw_board():
 				else:
 					locx, locy = _xy_to_board_image_coords(7-j, 7-i)
 
-				if transparent == (j, i):
+				if _SOLUTION_TO == (j, i) and _SOLUTION_PIECE != None:
+					_draw_piece(_SOLUTION_PIECE, (locx, locy), False)
+				elif transparent == (j, i):
 					_draw_piece(board[i][j], (locx, locy), False)
 				else:
 					_draw_piece(board[i][j], (locx, locy), True)
@@ -418,57 +419,49 @@ def _draw_board():
 			# This should never be reached
 			color = 'black'
 
-		from_point = _xy_to_board_image_coords(_WRONG_FROM[0], _WRONG_FROM[1])
-		from_point = (from_point[0] + _IMG_DIM / 2, from_point[1] - _IMG_DIM / 2)
+		_draw_arrow(_WRONG_FROM, _WRONG_TO, color)
 
-		to_point = _xy_to_board_image_coords(_WRONG_TO[0], _WRONG_TO[1])
-		to_point = (to_point[0] + _IMG_DIM / 2, to_point[1] - _IMG_DIM / 2)
+	if _SOLUTION_FROM != (-1, -1):
+		_draw_arrow(_SOLUTION_FROM, _SOLUTION_TO, BEST_MOVE_COLOR)
 
-		# Draw arrow head
-		angle = _angle((to_point[0] - from_point[0], to_point[1] - from_point[1]), (1, 0))
-		if to_point[1] - from_point[1] < 0:
-			angle *= -1
-
-		p1theta = 0 + angle
-		p2theta = 2.1 + angle
-		p3theta = 4.2 + angle
-
-		"""r = 15
-
-		p1x = r * cos(p1theta)
-		p1y = r * sin(p1theta)
-		p2x = r * cos(p2theta)
-		p2y = r * sin(p2theta)
-		p3x = r * cos(p3theta)
-		p3y = r * sin(p3theta)
-
-		p1 = (p1x + to_point[0], p1y + to_point[1])
-		p2 = (p2x + to_point[0], p2y + to_point[1])
-		p3 = (p3x + to_point[0], p3y + to_point[1])
-
-		# Draw outlines
-		_BOARD_GRAPH.DrawPolygon([p1, p2, p3], fill_color='black')
-		_BOARD_GRAPH.DrawLine(from_point, to_point, color='black', width=8)"""
 		
 
-		r = 10
+def _draw_arrow(from_xy, to_xy, color):
+	global _IMG_DIM
+	global _BOARD_GRAPH
 
-		p1x = r * cos(p1theta)
-		p1y = r * sin(p1theta)
-		p2x = r * cos(p2theta)
-		p2y = r * sin(p2theta)
-		p3x = r * cos(p3theta)
-		p3y = r * sin(p3theta)
+	from_point = _xy_to_board_image_coords(from_xy[0], from_xy[1])
+	from_point = (from_point[0] + _IMG_DIM / 2, from_point[1] - _IMG_DIM / 2)
 
-		p1 = (p1x + to_point[0], p1y + to_point[1])
-		p2 = (p2x + to_point[0], p2y + to_point[1])
-		p3 = (p3x + to_point[0], p3y + to_point[1])
+	to_point = _xy_to_board_image_coords(to_xy[0], to_xy[1])
+	to_point = (to_point[0] + _IMG_DIM / 2, to_point[1] - _IMG_DIM / 2)
 
-		# Draw colors
-		_BOARD_GRAPH.DrawPolygon([p1, p2, p3], fill_color=color)
-		_BOARD_GRAPH.DrawLine(from_point, to_point, color=color, width=5)
+	# Draw arrow head
+	angle = _angle((to_point[0] - from_point[0], to_point[1] - from_point[1]), (1, 0))
+	if to_point[1] - from_point[1] < 0:
+		angle *= -1
 
+	p1theta = 0 + angle
+	p2theta = 2.1 + angle
+	p3theta = 4.2 + angle
+	
 
+	r = 10
+
+	p1x = r * cos(p1theta)
+	p1y = r * sin(p1theta)
+	p2x = r * cos(p2theta)
+	p2y = r * sin(p2theta)
+	p3x = r * cos(p3theta)
+	p3y = r * sin(p3theta)
+
+	p1 = (p1x + to_point[0], p1y + to_point[1])
+	p2 = (p2x + to_point[0], p2y + to_point[1])
+	p3 = (p3x + to_point[0], p3y + to_point[1])
+
+	# Draw colors
+	_BOARD_GRAPH.DrawPolygon([p1, p2, p3], fill_color=color)
+	_BOARD_GRAPH.DrawLine(from_point, to_point, color=color, width=5)
 
 	
 """
@@ -493,11 +486,24 @@ def FocusCurrentPosition(boolean):
 	_FOCUS_CURRENT = boolean
 
 
+def LockBoard():
+	global _BOARD_LOCK
+	_BOARD_LOCK = True
+
+
+def UnlockBoard():
+	global _BOARD_LOCK
+	_BOARD_LOCK = False
+
+
+def RateEachMove(boolean):
+	global _RATE_EACH
+	_RATE_EACH = boolean
+
+
 def RetryMove():
 	global _BOARD_LOCK
-
 	_BOARD_LOCK = False
-	pass
 
 
 def _draw_piece(piece, loc, opaque):
@@ -703,6 +709,8 @@ def _make_move(moving_from, moving_to, promotion=None):
 		global _SIZE
 
 		if promotion == None:
+			global _PROMOTING
+			_PROMOTING = True
 			button_layout = [
 				[	
 					sg.Button("", image_filename=(_IMG_FOLDER + "/queen_" + ("white" if _CURR_DATA['turn'] == 'w' else "black") + ".png"), 
@@ -718,17 +726,23 @@ def _make_move(moving_from, moving_to, promotion=None):
 
 			promotion_window = sg.Window('Promotion', button_layout)
 			while True:
-				button, val = promotion_window.read()
+				button, _ = promotion_window.read()
 				if button is None or button == "__TIMEOUT__":
 					pass
+				elif button == sg.WIN_CLOSED:
+					# TODO: Fix this shit guy, it shouldn't just auto-queen, it should go back, but then again I think the whole
+					#		promotion system should probably just be revamped
+					promotion = 'Q' if _CURR_DATA['turn'] == 'w' else 'q'
+					break
 				else:
 					promotion = button
 					break
 
-			promotion_window.close()
+			promotion_window.Close()
 
 		_set_piece(x, y, promotion)
 
+	_PROMOTING = False
 	global _LAST_MOVE_FROM
 	global _LAST_MOVE_TO
 	_LAST_MOVE_FROM = moving_from
@@ -746,15 +760,16 @@ def _make_move(moving_from, moving_to, promotion=None):
 	global dragging
 	if not _FOCUS_CURRENT:
 		ResetWrongMove()
-
-
-	if _FOCUS_CURRENT:
+	
+	if _RATE_EACH:
 		UpdateBoard()
 		_ROOT.event_generate("<<Eval-Waiting>>")
 
 		old_score, best_move = analysis.SyncAnalysis(prev_fen) # should already be stored, so this should go immediately
-		if best_move[0:2] == _xy_to_rank_file(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1]) and best_move[2:] == _xy_to_rank_file(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1]):
-			_ROOT.event_generate("<<Eval-Done-Best Move>>")
+		print("best_move: %s" % (best_move))
+		print("rank file transforms: %s%s" % (_xy_to_rank_file(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1]), _xy_to_rank_file(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1])))
+		if best_move[:2] == _xy_to_rank_file(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1]) and best_move[2:4] == _xy_to_rank_file(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1]) and	(len(best_move) == 4 or best_move[4] == promotion.lower()):
+				_ROOT.event_generate("<<Eval-Done-Best Move>>")
 		else:
 			new_score, _ = analysis.SyncAnalysis(_CURR_DATA['fen'])
 			_ROOT.event_generate("<<Eval-Done-%s>>" % (RatingToStr(analysis._categorize_move(old_score, -new_score 
@@ -798,6 +813,29 @@ def SetWrongMove(wrong_from, wrong_to, wrong_type):
 	_WRONG_FROM = wrong_from
 	_WRONG_TO = wrong_to
 	_WRONG_TYPE = wrong_type
+
+
+_SOLUTION_FROM = (-1, -1)
+_SOLUTION_TO = (-1, -1)
+_SOLUTION_PIECE = None
+def SetSolution(str):
+	global _SOLUTION_FROM
+	global _SOLUTION_TO
+	global _SOLUTION_PIECE
+
+	_SOLUTION_FROM = _rank_file_to_xy(str[:2])
+	_SOLUTION_TO = _rank_file_to_xy(str[2:4])
+
+	if len(str) == 5:
+		_SOLUTION_PIECE = str[4]
+
+
+def ResetSolution():
+	global _SOLUTION_FROM
+	global _SOLUTION_TO
+
+	_SOLUTION_FROM = (-1, -1)
+	_SOLUTION_TO = (-1, -1)
 
 
 def UpdateBoard():
@@ -1357,7 +1395,7 @@ def _pgn_to_fen_helper(PGN):
 			while PGN[i] != '}':
 				i += 1
 		elif PGN[i] == '(':
-			""" Possible TODO: Implement actually reading in nested lines instead of ignoring them """
+			""" Possible TODO: Implement reading nested lines instead of ignoring them """
 			while PGN[i] != ')':
 				i+= 1
 		elif PGN[i] == ';':
@@ -1365,7 +1403,7 @@ def _pgn_to_fen_helper(PGN):
 				i += 1
 		elif PGN[i] == '[':
 			while PGN[i] != ']':
-				""" TODO: Implement actually reading the tag info here; all used tags are listed on https://en.wikipedia.org/wiki/Portable_Game_Notation#Tag_pairs """
+				""" TODO: Implement reading the tag info here; all used tags are listed on https://en.wikipedia.org/wiki/Portable_Game_Notation#Tag_pairs """
 				i += 1
 		elif PGN[i] == '\n':
 			print("Caught newline")

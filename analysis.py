@@ -15,16 +15,19 @@ import tkinter
 import sys
 from time import sleep
 from globals import *
+import traceback
+
 
 _READ_THREAD = None
 _WRITE_THREAD = None
-_ALIVE = True
+_ALIVE = False
 
 _PROC = None
 _UCI_ENGINE_LOC = "engines/stockfish11_win_64.exe"
 _ROOT = None
 
 _STORAGE = {}
+_INITIATED = False
 
 
 def Init(root):
@@ -32,8 +35,12 @@ def Init(root):
     global _PROC
     global _UCI_ENGINE_LOC
     global _ROOT
+    global _ALIVE
 
+    _ALIVE = True
     _ROOT = root
+
+    LoadStorage()
 
     _PROC = subprocess.Popen([_UCI_ENGINE_LOC], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     _READ_THREAD = threading.Thread(target=_reading_thread_run, args=())
@@ -65,6 +72,36 @@ def Close():
     _WAITING_FOR_UPDATE_WRITE.acquire()
     _WAITING_FOR_UPDATE_WRITE.notify()
     _WAITING_FOR_UPDATE_WRITE.release()
+
+
+def SaveStorage():
+    global _STORAGE
+
+    with open('.storage', 'w+') as f:
+        for item in _STORAGE:
+            f.write(item + ':' + str(_STORAGE[item][0]) 
+                        + ':' + str(_STORAGE[item][1]) + ':' + str(_STORAGE[item][2]) + '\n')
+
+
+"""
+    Format of .storage as it stands is just lines of the following format:
+        FEN:evaluation score:best move:search depth
+"""
+def LoadStorage():
+    global _STORAGE
+
+    with open('.storage', 'r') as f:
+        lines = f.read().split('\n')
+
+    for line in lines:
+        ele = line.split(':')
+        if ele == ['']:
+            break
+        try:
+            _STORAGE[ele[0]] = (int(ele[1]), ele[2], int(ele[3]))
+        except:
+            # Evaluation was a mate, so ele[1] is a string
+            _STORAGE[ele[0]] = (ele[1], ele[2], int(ele[3]))
 
 
 _WAITING_FOR_UPDATE_READ = threading.Condition()
@@ -102,8 +139,6 @@ def _writing_thread_run():
 
         _WRITING_FEN = _PRIMED_FEN
 
-        """ TODO: Add a mechanism that can make it so that stop is not run until the current analysis is totally finished
-                      * this probably involves using another condition variable for when bestmove is found in the read thread """
         # We have a new FEN now
         _write('stop\n', _PROC)
 
@@ -213,11 +248,16 @@ def _raise_event():
 
 def SyncAnalysis(FEN):
     global _STORAGE
+    if _STORAGE == {}:
+        LoadStorage()
+
     if FEN in _STORAGE and _STORAGE[FEN][2] >= DEPTH:
         return _STORAGE[FEN][0], _STORAGE[FEN][1]
 
     proc = subprocess.Popen([_UCI_ENGINE_LOC], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
+    _write('uci\n', proc)
+    _write('setoption name Threads value 4\n', proc)
     _write('position fen ' + FEN + '\n', proc)
     _write('go depth ' + str(DEPTH) + '\n', proc)
 
@@ -269,6 +309,10 @@ def CurrentAnalysis():
     global _CURR_EVAL
     global _CURR_BEST_MOVE
     global _READING_FEN
+    global _ALIVE
+
+    if not _ALIVE:
+        return None
 
     return _CURR_EVAL, _CURR_BEST_MOVE, _READING_FEN
 
@@ -282,7 +326,10 @@ def SetFen(FEN):
     global _CURR_EVAL
     global _CURR_BEST_MOVE
     global _READING_FEN
+    global _ALIVE
 
+    if not _ALIVE:
+        return
 
     _PRIMED_FEN = FEN
     _NEW_FEN_BOOL = True
@@ -313,21 +360,27 @@ def _categorize_move(score_before, score_after):
                     # TODO: check numbers
                     return EXCELLENT
                 else:
+                    # TODO: check numbers
                     return BLUNDER
             else:
-                if score_after > 1000:  
-                    return EXCELLENT
-                elif score_after > 300:
-                    return GOOD
+                if score_after > 450:
+                    return MISTAKE
                 else:
                     return BLUNDER
         elif '-' in score_before:
             if type(score_after) == str:
                 if '-' in score_after:
-                    # TODO: check numbers
-                    return EXCELLENT
-                else:
-                    return EXCELLENT
+                    div = int(score_before.split('-')[1]) / int(score_after.split('-')[1])
+                    if div == 1:
+                        return BEST_MOVE
+                    elif div > 1.1:
+                        return EXCELLENT
+                    elif div > 1.5:
+                        return GOOD
+                    elif div > 1.9:
+                        return INACCURACY
+                    else:
+                        return MISTAKE
             else:
                 return EXCELLENT
 
@@ -344,9 +397,9 @@ def _categorize_move(score_before, score_after):
         return BLUNDER
     elif diff < -130:
         return MISTAKE
-    elif diff < -30:
+    elif diff < -90:
         return INACCURACY
-    elif diff < -15:
+    elif diff < -65:
         return GOOD
     elif diff <= 10:
         return EXCELLENT
