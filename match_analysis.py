@@ -27,14 +27,14 @@ _RATINGS = []
 _CURR_INDEX = 0
 
 _OVERVIEW_TEXT = []
-PLAYER = 'b'
+_PLAYER = 'b'
 
 def run():
     global _SCORES
     global _RATINGS
     global WINDOW
     global _CURR_INDEX
-    global PLAYER
+    global _PLAYER
 
     """try:
         clip = clipboard.paste()
@@ -78,7 +78,6 @@ def run():
         event, _ = window.read(timeout=0)
         if event == sg.WIN_CLOSED:
             _close(window)
-            analysis.SaveStorage()
             return
         
         try:
@@ -89,11 +88,10 @@ def run():
         except IndexError:
             break
 
-    analysis.SaveStorage()
     _close(window)
     del window
 
-    for i in range(0 if PLAYER == 'w' else 1, len(_SCORES), 2):
+    for i in range(0, len(_SCORES)):
         try:
             score_before = _SCORES[i][0]
             score_after = -_SCORES[i+1][0] if type(_SCORES[i+1][0]) == int else _SCORES[i+1][0].replace('-', '') if '-' in _SCORES[i+1][0] else _SCORES[i+1][0].replace('+', '-')
@@ -123,7 +121,7 @@ def run():
     analysis_bar_column = sg.Column([[analysis_bar], [analysis_text]], background_color=BG_COLOR, pad=((0, 0), (32, 0)), element_justification='center')
     overview = builder.MatchOverviewGraph([i for (i, j) in _SCORES])
 
-    thresh = INACCURACY
+    thresh = INACCURACY*2
     window = sg.Window("Match Analysis", [ 
                                             [  
                                                 analysis_bar_column,
@@ -154,6 +152,7 @@ def run():
     butil.RateEachMove(True)
     butil.LockBoard()
     butil.SetPosFromFEN(butil._STARTING_POS_FEN)
+    butil._flip_board()
     butil.UpdateBoard()
 
     while True:
@@ -166,11 +165,12 @@ def run():
         if event == sg.WIN_CLOSED:
             break
         elif type(event) == str and 'RETRY-BUTTON' in event:
-            index = int(event.split('.')[0])*2 if PLAYER == 'w' else int(event.split('.')[0])*2 + 1
+            split = event.split('.')
+            index = int(split[0])*2 if split[1] == 'w' else int(split[0])*2 + 1
             _switch_to_move(index)
         elif event == 'threshold-dropdown':
             new_thresh = window['threshold-dropdown'].Get()
-            new_thresh = StrToRating(new_thresh)
+            new_thresh = StrToRating(new_thresh) * 2 + (0 if _PLAYER == 'w' else 1)
 
             columns[thresh].Update(visible=False)
             columns[new_thresh].Update(visible=True)
@@ -179,7 +179,7 @@ def run():
         elif event == 'RETRY-MOVE':
             _switch_to_move(_CURR_INDEX)
         elif event == 'SHOW-SOLUTION':
-            butil.SetSolution(_SCORES[_CURR_INDEX][1].upper() if PLAYER == 'w' else _SCORES[_CURR_INDEX][1])
+            butil.SetSolution(_SCORES[_CURR_INDEX][1].upper() if _PLAYER == 'w' else _SCORES[_CURR_INDEX][1])
             butil.UpdateBoard()
         elif event in switch_names:
             info = window[event].__dict__
@@ -239,7 +239,6 @@ def run():
 
         i += 1
 
-    analysis.SaveStorage()
     _close(window)
 
 
@@ -255,7 +254,7 @@ def _overview_release(event):
     index = int((event.y+OVERVIEW_PER_SCORE_MULTIPLIER/2) // OVERVIEW_PER_SCORE_MULTIPLIER)
     print("RELEASED %s" % (index))
     if index == _CLICKED_INDEX:
-        _switch_to_move(index+1)
+        _switch_to_move(index)
 
     _CLICKED_INDEX = -1
 
@@ -360,13 +359,13 @@ def _update_menu_graph(text, text_color, bg_color, font):
 def _update_current_button(rating):
     global _CURR_INDEX
     rating = StrToRating(rating)
-    for j in range(0, _RATINGS[floor(_CURR_INDEX / 2)] + 1):
-        print("j: %s" % (j))
-        rows = WINDOW['ratings-column-%s' % (j)].__dict__['Rows']
+    print("_CURR_INDEX: %s, _RATINGS[_CURR_INDEX]: %s" % (_CURR_INDEX, _RATINGS[_CURR_INDEX]))
+    for j in range(0, _RATINGS[_CURR_INDEX] + 1):
+        rows = WINDOW['%s-ratings-column-%s' % (_PLAYER, j)].__dict__['Rows']
         for button in rows:
             button = button[0]
 
-            if rating < button.__dict__['metadata'] and int(button.__dict__['Key'].split('.')[0]) == floor(_CURR_INDEX / 2):
+            if rating <= button.__dict__['metadata'] and int(button.__dict__['Key'].split('.')[0]) == int(_CURR_INDEX // 2):
                 button.Update(button_color=('white', RatingToColor(rating)))
                 button.__dict__['metadata'] = rating
 
@@ -382,16 +381,15 @@ def _switch_to_move(index):
     if 'on' in WINDOW['BUTTON-RATE-EACH-MOVE'].__dict__['metadata']:
         _wait_for_move()
 
-    rating_index = floor(index / 2)
     butil.SetPosFromFEN(butil._PGN_DATA[index][0])
     butil.AnalysisEvent(None)
 
-    if rating_index - 1 >= 0:
+    if index - 1 >= 0:
         butil.SetLastMove(butil._PGN_DATA[index-1][1][0], butil._PGN_DATA[index-1][1][1])
     else:
         butil.ResetLastMove()
     if 'on' in WINDOW['BUTTON-RATE-EACH-MOVE'].__dict__['metadata']:
-        butil.SetWrongMove(butil._PGN_DATA[index][1][0], butil._PGN_DATA[index][1][1], _RATINGS[rating_index])
+        butil.SetWrongMove(butil._PGN_DATA[index][1][0], butil._PGN_DATA[index][1][1], _RATINGS[index])
     butil.ResetSolution()
     butil.UpdateBoard()
 

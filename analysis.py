@@ -26,6 +26,7 @@ _PROC = None
 _UCI_ENGINE_LOC = "engines/stockfish11_win_64.exe"
 _ROOT = None
 
+_OLD_STORAGE = {}
 _STORAGE = {}
 _INITIATED = False
 
@@ -82,7 +83,7 @@ def SaveStorage():
     if _STORAGE == {}:
         return
 
-    with open('.storage', 'w+') as f:
+    with open('.storage', 'a') as f:
         for item in _STORAGE:
             f.write(item + ':' + str(_STORAGE[item][0]) 
                         + ':' + str(_STORAGE[item][1]) + ':' + str(_STORAGE[item][2]) + '\n')
@@ -93,7 +94,7 @@ def SaveStorage():
         FEN:evaluation score:best move:search depth
 """
 def LoadStorage():
-    global _STORAGE
+    global _OLD_STORAGE
 
     with open('.storage', 'r') as f:
         lines = f.read().split('\n')
@@ -103,10 +104,10 @@ def LoadStorage():
         if ele == ['']:
             break
         try:
-            _STORAGE[ele[0]] = (int(ele[1]), ele[2], int(ele[3]))
+            _OLD_STORAGE[ele[0]] = (int(ele[1]), ele[2], int(ele[3]))
         except:
             # Evaluation was a mate, so ele[1] is a string
-            _STORAGE[ele[0]] = (ele[1], ele[2], int(ele[3]))
+            _OLD_STORAGE[ele[0]] = (ele[1], ele[2], int(ele[3]))
 
 
 _WAITING_FOR_UPDATE_READ = threading.Condition()
@@ -182,25 +183,26 @@ def _reading_thread_run():
             _WAITING_FOR_UPDATE_READ.release()
 
         try:
-            if _STORAGE[_PRIMED_FEN][2] >= DEPTH:
+            if _PRIMED_FEN in _STORAGE and _STORAGE[_PRIMED_FEN][2] >= DEPTH:
                 _CURR_EVAL = _STORAGE[_PRIMED_FEN][0]
                 _CURR_BEST_MOVE = _STORAGE[_PRIMED_FEN][1]
                 _CURR_DEPTH = _STORAGE[_PRIMED_FEN][2]
                 _READING_FEN = _PRIMED_FEN
 
-                print("1")
+                _raise_event()
+                _READ_FEN_COUNT += 1
+            elif _PRIMED_FEN in _OLD_STORAGE and _OLD_STORAGE[_PRIMED_FEN][2] >= DEPTH:
+                _CURR_EVAL = _OLD_STORAGE[_PRIMED_FEN][0]
+                _CURR_BEST_MOVE = _OLD_STORAGE[_PRIMED_FEN][1]
+                _CURR_DEPTH = _OLD_STORAGE[_PRIMED_FEN][2]
+                _READING_FEN = _PRIMED_FEN
+
                 _raise_event()
                 _READ_FEN_COUNT += 1
             else:
                 raise KeyError
         except KeyError:
             while _WRITTEN_FEN_COUNT != _READ_FEN_COUNT:
-                try:
-                    if _PRIMED_FEN != _READING_FEN:
-                        _STORAGE[_PRIMED_FEN]
-                        break
-                except KeyError:
-                    pass
                 _READING_FEN = _PRIMED_FEN
                 
                 out = str(_PROC.stdout.read1(-1))[2:-1].replace('\\r', '').split('\\n')
@@ -258,11 +260,13 @@ def _raise_event():
 
 def SyncAnalysis(FEN):
     global _STORAGE
-    if _STORAGE == {}:
+    if _OLD_STORAGE == {}:
         LoadStorage()
 
     if FEN in _STORAGE and _STORAGE[FEN][2] >= DEPTH:
         return _STORAGE[FEN][0], _STORAGE[FEN][1]
+    elif FEN in _OLD_STORAGE and _OLD_STORAGE[FEN][2] >= DEPTH:
+        return _OLD_STORAGE[FEN][0], _OLD_STORAGE[FEN][1]
 
     proc = subprocess.Popen([_UCI_ENGINE_LOC], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
@@ -317,14 +321,18 @@ def _get_sync_score(proc):
 
 def CurrentAnalysis(FEN):
     global _STORAGE
+    global _OLD_STORAGE
 
-    if not FEN in _STORAGE:
-        if _READING_FEN == FEN:
-            return _CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH
+    if FEN in _STORAGE:
+        s = _STORAGE[FEN]
+        return s[0], s[1], s[2]
+    elif FEN in _OLD_STORAGE:
+        s = _OLD_STORAGE[FEN]
+        return s[0], s[1], s[2]
+    elif _READING_FEN == FEN:
+        return _CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH
+    else:
         return None, None, None
-    
-    s = _STORAGE[FEN]
-    return s[0], s[1], s[2]
 
 
 """def CurrentAnalysis():
@@ -356,6 +364,8 @@ def SetFen(FEN):
 
     if FEN in _STORAGE and _STORAGE[FEN][2] >= DEPTH:
         # don't clog the analysis threads if we already have the result for the analysis
+        _raise_event()
+    elif FEN in _OLD_STORAGE and _OLD_STORAGE[FEN][2] >= DEPTH:
         _raise_event()
     else:
         _PRIMED_FEN = FEN

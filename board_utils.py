@@ -380,8 +380,12 @@ def _draw_board():
 
 	# Draw last move squares
 	if _LAST_MOVE_FROM != (-1, -1):
-		bottom_corner_from = _xy_to_board_image_coords(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1])
-		bottom_corner_to = _xy_to_board_image_coords(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1])
+		if _PERSPECTIVE == 'w':
+			bottom_corner_from = _xy_to_board_image_coords(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1])
+			bottom_corner_to = _xy_to_board_image_coords(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1])
+		else:
+			bottom_corner_from = _xy_to_board_image_coords(7-_LAST_MOVE_FROM[0], 7-_LAST_MOVE_FROM[1])
+			bottom_corner_to = _xy_to_board_image_coords(7-_LAST_MOVE_TO[0], 7-_LAST_MOVE_TO[1])
 
 		_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/last_move.png", location=bottom_corner_from)
 		_BOARD_GRAPH.DrawImage(filename=_IMG_FOLDER + "/last_move.png", location=bottom_corner_to)
@@ -438,10 +442,17 @@ def _draw_arrow(from_xy, to_xy, color):
 	global _IMG_DIM
 	global _BOARD_GRAPH
 
-	from_point = _xy_to_board_image_coords(from_xy[0], from_xy[1])
+	if _PERSPECTIVE == 'w':
+		from_point = _xy_to_board_image_coords(from_xy[0], from_xy[1])
+		to_point = _xy_to_board_image_coords(to_xy[0], to_xy[1])
+	else:
+		from_point = _xy_to_board_image_coords(7-from_xy[0], 7-from_xy[1])
+		to_point = _xy_to_board_image_coords(7-to_xy[0], 7-to_xy[1])
+
+
+
 	from_point = (from_point[0] + _IMG_DIM / 2, from_point[1] - _IMG_DIM / 2)
 
-	to_point = _xy_to_board_image_coords(to_xy[0], to_xy[1])
 	to_point = (to_point[0] + _IMG_DIM / 2, to_point[1] - _IMG_DIM / 2)
 
 	# Draw arrow head

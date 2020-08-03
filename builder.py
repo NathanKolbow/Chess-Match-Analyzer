@@ -193,15 +193,22 @@ def MatchOverviewGraph(scores):
 def AnalysisMenuElements(ratings):
     columns = []
     for j in range(BEST_MOVE, BLUNDER + 1):
-        buttons = []
+        white_buttons = []
+        black_buttons = []
         for i in range(0, len(ratings)):
             if ratings[i] < j:
                 continue
-            buttons.append([sg.Button('%s.\t%s' % (i+1, RatingToStr(ratings[i])), key='%s.RETRY-BUTTON.%s' % (i, j), 
-                                        button_color=('white', BG_COLOR), border_width=0, font=DEFAULT_FONT, metadata=ratings[i])])
+            if i % 2 == 0:
+                white_buttons.append([sg.Button('%s.\t%s' % (i//2+1, RatingToStr(ratings[i])), key='%s.w.RETRY-BUTTON.%s' % (int(i//2), j), 
+                                    button_color=('white', BG_COLOR), border_width=0, font=DEFAULT_FONT, metadata=ratings[i])])
+            else:
+                black_buttons.append([sg.Button('%s.\t%s' % (i//2+1, RatingToStr(ratings[i])), key='%s.b.RETRY-BUTTON.%s' % (int(i//2), j), 
+                                    button_color=('white', BG_COLOR), border_width=0, font=DEFAULT_FONT, metadata=ratings[i])])
 
-        columns.append(sg.Column(buttons, background_color=BG_COLOR, scrollable=True, justification='center', element_justification='left', 
-                            size=(200, 200), vertical_scroll_only=True, key='ratings-column-%s' % (j), visible=False))
+        columns.append(sg.Column(white_buttons, background_color=BG_COLOR, scrollable=True, justification='center', element_justification='left', 
+                            size=(200, 200), vertical_scroll_only=True, key='w-ratings-column-%s' % (j), visible=False))
+        columns.append(sg.Column(black_buttons, background_color=BG_COLOR, scrollable=True, justification='center', element_justification='left', 
+                            size=(200, 200), vertical_scroll_only=True, key='b-ratings-column-%s' % (j), visible=False))
 
     analysis_menu = [
         [
