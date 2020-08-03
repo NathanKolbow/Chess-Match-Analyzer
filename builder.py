@@ -4,6 +4,7 @@ from PIL import Image
 import base64
 from io import BytesIO
 import mathemagics
+import analysis
 from analysis import _categorize_move
 
 
@@ -22,7 +23,7 @@ def _set_compression_images(window):
         #    window[name].Update(image_data=_button_on_data(True) if new == 'on' else _button_off_data(True))
 
 
-def PostFinalization(window, overview_hover_func=None, overview_hover_text=None):
+def PostFinalization(window, overview_hover_func=None, overview_hover_text=None, overview_click=None, overview_release=None):
     callbacks = []
 
     for i in range(BEST_MOVE, BLUNDER + 1):
@@ -118,9 +119,13 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None)
         for i in range(1, len(scores)):
             overview_graph.DrawPoint((mathemagics.Transform(scores[i]/100) * OVERVIEW_MAX_WIDTH, (i)*y_step), color=OVERVIEW_POINT_COLOR, size=OVERVIEW_POINT_SIZE)
 
-        # Bind the overview graph mouse move function
+        # Bind the overview graph mouse functions
         if overview_hover_func != None:
             overview_graph.Widget.bind("<Motion>", overview_hover_func)
+        if overview_click != None:
+            overview_graph.Widget.bind("<Button-1>", overview_click)
+        if overview_release != None:
+            overview_graph.Widget.bind("<ButtonRelease-1>", overview_release)
 
         if overview_hover_text != None:
             overview_hover_text.append(overview_graph)
@@ -128,7 +133,22 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None)
 
         window.read(timeout=0)
     
+    # Init analysis if we have a bar
+    analysis_bar = window.FindElement('analysis-graph', silent_on_error=True)
+    if analysis_bar != None:
+        analysis.Init(window.TKroot)
+
+    # Correct analysis text starting value
+    text = window.FindElement('analysis-text', silent_on_error=True)
+    if text != None:
+        text.Update(value="depth %s/%s" % (0, DEPTH))
+
     return callbacks
+
+
+def walrus(variable, value):
+    variable = value
+    return value
 
 
 def BoardElements():
@@ -204,7 +224,7 @@ def AnalysisMenuElements(ratings):
             sg.Text('Rate Each Move', font=DEFAULT_FONT, background_color=BG_COLOR)
         ],
         [
-            sg.Button('', image_data=_button_off_data(True), key='BUTTON-ANALYSIS-BAR', button_color=(None, None), metadata='off'),
+            sg.Button('', image_data=_button_on_data(True), key='BUTTON-ANALYSIS-BAR', button_color=(None, None), metadata='on'),
             sg.Text('Analysis Bar', font=DEFAULT_FONT, background_color=BG_COLOR)
         ],
         [
@@ -234,18 +254,9 @@ def AnalysisMenuElements(ratings):
 
 
 def AnalysisBarElements():
-	analysis_bar = [
-		[
-			sg.Graph(canvas_size=(50, CANVAS_SIZE),
-				graph_bottom_left=(0,0),
-				graph_top_right=(50,CANVAS_SIZE),
-				key="analysis-graph",
-				background_color=BG_COLOR
-			)
-		]
-	]
-
-	return analysis_bar
+    analysis_bar = sg.Graph(canvas_size=(50, CANVAS_SIZE), graph_bottom_left=(0,0), graph_top_right=(50,CANVAS_SIZE), key="analysis-graph", background_color=BG_COLOR)
+    text = sg.Text('depth: 100/100', background_color=BG_COLOR, font=DEFAULT_FONT_SMALL, text_color='black', key='analysis-text')
+    return analysis_bar, text
 
 
 def _button_mid_data(enabled):

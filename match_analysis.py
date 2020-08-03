@@ -27,15 +27,16 @@ _RATINGS = []
 _CURR_INDEX = 0
 
 _OVERVIEW_TEXT = []
-
+PLAYER = 'b'
 
 def run():
     global _SCORES
     global _RATINGS
     global WINDOW
     global _CURR_INDEX
+    global PLAYER
 
-    try:
+    """try:
         clip = clipboard.paste()
         ret = butil.PGNToFENList(clip)
         if not ret:
@@ -50,7 +51,7 @@ def run():
             event, _ = window.read()
 
             if event == sg.WIN_CLOSED:
-                window.close()
+                _close(window)
                 return
             else:
                 try:
@@ -58,14 +59,16 @@ def run():
                     ret = butil.PGNToFENList(clip)
 
                     if ret:
-                        window.close()
+                        _close(window)
                         break
                 except TclError:
                     # Probably caused by a clipboard error
                     pass
 
                 failure_text.Update(visible=True)
-        del window
+        del window"""
+
+    butil.PGNToFENList("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6 dxc6 5. Nxe5 Qd4 6. Nf3 Qxe4+ 7. Qe2 Qxe2+ 8. Kxe2 Nf6")
 
     bar = sg.ProgressBar(len(butil._PGN_DATA), orientation='horizontal', size=(20, 20), key='progbar')
     window = sg.Window("Loading Analyses", [[bar]], background_color=BG_COLOR)
@@ -74,7 +77,7 @@ def run():
     for i in range(len(butil._PGN_DATA)):
         event, _ = window.read(timeout=0)
         if event == sg.WIN_CLOSED:
-            window.close()
+            _close(window)
             analysis.SaveStorage()
             return
         
@@ -87,11 +90,10 @@ def run():
             break
 
     analysis.SaveStorage()
-    window.close()
+    _close(window)
     del window
 
-    player = 'w'
-    for i in range(0 if player == 'w' else 1, len(_SCORES), 2):
+    for i in range(0 if PLAYER == 'w' else 1, len(_SCORES), 2):
         try:
             score_before = _SCORES[i][0]
             score_after = -_SCORES[i+1][0] if type(_SCORES[i+1][0]) == int else _SCORES[i+1][0].replace('-', '') if '-' in _SCORES[i+1][0] else _SCORES[i+1][0].replace('+', '-')
@@ -117,11 +119,14 @@ def run():
 
     board = builder.BoardElements()
     analysis_menu, columns = builder.AnalysisMenuElements(_RATINGS)
+    analysis_bar, analysis_text = builder.AnalysisBarElements()
+    analysis_bar_column = sg.Column([[analysis_bar], [analysis_text]], background_color=BG_COLOR, pad=((0, 0), (32, 0)), element_justification='center')
     overview = builder.MatchOverviewGraph([i for (i, j) in _SCORES])
 
     thresh = INACCURACY
     window = sg.Window("Match Analysis", [ 
                                             [  
+                                                analysis_bar_column,
                                                 sg.Column(board, background_color=BG_COLOR), 
                                                 sg.Column(analysis_menu, background_color=BG_COLOR), 
                                                 sg.Column([[sg.Text('Black    v    White', font=DEFAULT_FONT_BOLD, background_color=BG_COLOR)], [overview]], 
@@ -142,7 +147,7 @@ def run():
     window.TKroot.bind("<<Eval-Done-Blunder>>", _eval_done_blunder)
 
     columns[thresh].Update(visible=True)
-    callbacks = builder.PostFinalization(window, overview_hover_func=_overview_hover, overview_hover_text=_OVERVIEW_TEXT)
+    callbacks = builder.PostFinalization(window, overview_hover_func=_overview_hover, overview_hover_text=_OVERVIEW_TEXT, overview_click=_overview_click, overview_release=_overview_release)
 
     butil.Init(window, CANVAS_SIZE)
     butil.FocusCurrentPosition(True)
@@ -161,7 +166,7 @@ def run():
         if event == sg.WIN_CLOSED:
             break
         elif type(event) == str and 'RETRY-BUTTON' in event:
-            index = int(event.split('.')[0])*2 if player == 'w' else int(event.split('.')[0])*2 + 1
+            index = int(event.split('.')[0])*2 if PLAYER == 'w' else int(event.split('.')[0])*2 + 1
             _switch_to_move(index)
         elif event == 'threshold-dropdown':
             new_thresh = window['threshold-dropdown'].Get()
@@ -174,31 +179,52 @@ def run():
         elif event == 'RETRY-MOVE':
             _switch_to_move(_CURR_INDEX)
         elif event == 'SHOW-SOLUTION':
-            butil.SetSolution(_SCORES[_CURR_INDEX][1].upper() if player == 'w' else _SCORES[_CURR_INDEX][1])
+            butil.SetSolution(_SCORES[_CURR_INDEX][1].upper() if PLAYER == 'w' else _SCORES[_CURR_INDEX][1])
             butil.UpdateBoard()
         elif event in switch_names:
             info = window[event].__dict__
             print(info['metadata'])
             if not '.disabled' in info['metadata']:
-                info['metadata'] = 'on.mid' if 'off' in info['metadata'] else 'off.mid'
+                if 'on' in info['metadata']:
+                    # Flipping switch off
+                    window[event].Update(image_data=builder._button_off_data(True))
+                    info['metadata'] = info['metadata'].replace('n', 'ff')
 
-                if event == 'BUTTON-PLAYTHRU':
-                    if 'on' in info['metadata']:
-                        # Flipping switch off
-                        window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'].split('.disabled')[0]
-                        window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(True))
-
-                        window[event].Update(image_data=builder._button_off_data(True))
-                        info['metadata'] = 'off'
-                        butil.FocusCurrentPosition(True)
-                    else:
-                        # Flipping switch on
+                    if event == 'BUTTON-PLAYTHRU':
                         window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on.disabled'
                         window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(False))
 
-                        window[event].Update(image_data=builder._button_on_data(True))
-                        info['metadata'] = 'on'
+                        _wait_for_move()
+                        butil.FocusCurrentPosition(True)
+                        butil.LockBoard()
+                    elif event == 'BUTTON-ANALYSIS-BAR':
+                        analysis_bar.Update(visible=False)
+                        analysis_text.Update(visible=False)
+                    elif event == 'BUTTON-RATE-EACH-MOVE':
+                        _eval_blank()
+                        butil.RateEachMove(False)
+                else:
+                    # Flipping switch on
+                    window[event].Update(image_data=builder._button_on_data(True))
+                    info['metadata'] = info['metadata'].replace('ff', 'n')
+
+                    if event == 'BUTTON-PLAYTHRU':
+                        window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on'
+                        window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(True))
+                        
+                        butil.ResetSolution()
+                        butil.ResetWrongMove()
+                        butil.UpdateBoard()
+
+                        _wait_for_move()
                         butil.FocusCurrentPosition(False)
+                        butil.UnlockBoard()
+                    elif event == 'BUTTON-ANALYSIS-BAR':
+                        analysis_bar.Update(visible=True)
+                        analysis_text.Update(visible=True)
+                    elif event == 'BUTTON-RATE-EACH-MOVE':
+                        _wait_for_move()
+                        butil.RateEachMove(True)
 
 
         for callback in callbacks:
@@ -214,7 +240,24 @@ def run():
         i += 1
 
     analysis.SaveStorage()
-    window.close()
+    _close(window)
+
+
+_CLICKED_INDEX = -1
+def _overview_click(event):
+    global _CLICKED_INDEX
+    _CLICKED_INDEX = int((event.y+OVERVIEW_PER_SCORE_MULTIPLIER/2) // OVERVIEW_PER_SCORE_MULTIPLIER)
+    print("CLICKED %s" % (_CLICKED_INDEX))
+
+
+def _overview_release(event):
+    global _CLICKED_INDEX
+    index = int((event.y+OVERVIEW_PER_SCORE_MULTIPLIER/2) // OVERVIEW_PER_SCORE_MULTIPLIER)
+    print("RELEASED %s" % (index))
+    if index == _CLICKED_INDEX:
+        _switch_to_move(index+1)
+
+    _CLICKED_INDEX = -1
 
 
 def _overview_hover(event):
@@ -224,29 +267,31 @@ def _overview_hover(event):
     if _OVERVIEW_TEXT == []:
         return
 
-    y = event.y
-    index = int((y+OVERVIEW_PER_SCORE_MULTIPLIER/2) // OVERVIEW_PER_SCORE_MULTIPLIER)
+    index = int((event.y+OVERVIEW_PER_SCORE_MULTIPLIER/2) // OVERVIEW_PER_SCORE_MULTIPLIER)
 
-    score = _OVERVIEW_TEXT[0].__dict__['metadata'][index]
-    x = mathemagics.Transform(score/100) * OVERVIEW_MAX_WIDTH + OVERVIEW_SIZE[0]/2 + (OVERVIEW_TEXT_ADJUSTMENT if index % 2 == 0 else -OVERVIEW_TEXT_ADJUSTMENT)
+    try:
+        score = _OVERVIEW_TEXT[0].__dict__['metadata'][index]
+        x = mathemagics.Transform(score/100) * OVERVIEW_MAX_WIDTH + OVERVIEW_SIZE[0]/2 + (OVERVIEW_TEXT_ADJUSTMENT if index % 2 == 0 else -OVERVIEW_TEXT_ADJUSTMENT)
 
-    _OVERVIEW_TEXT[0].Widget.coords(_OVERVIEW_TEXT[1], (x, index * OVERVIEW_PER_SCORE_MULTIPLIER))
-    display_score = _SCORES[index][0]
-    if type(display_score) == str:
-        if '-' in display_score:
-            display_score = display_score.replace('+', '')
-        
-        if i % 2 != 0:
+        _OVERVIEW_TEXT[0].Widget.coords(_OVERVIEW_TEXT[1], (x, index * OVERVIEW_PER_SCORE_MULTIPLIER))
+        display_score = _SCORES[index][0]
+        if type(display_score) == str:
             if '-' in display_score:
-                display_score = display_score.replace('-', '+')
-            else:
-                display_score = display_score.replace('+', '-')
-    else:
-        display_score = display_score/100 if index % 2 == 0 else -display_score/100
-        display_score = str(display_score)
+                display_score = display_score.replace('+', '')
+            
+            if index % 2 != 0:
+                if '-' in display_score:
+                    display_score = display_score.replace('-', '+')
+                else:
+                    display_score = display_score.replace('+', '-')
+        else:
+            display_score = display_score/100 if index % 2 == 0 else -display_score/100
+            display_score = str(display_score)
 
-    _OVERVIEW_TEXT[0].Widget.itemconfig(_OVERVIEW_TEXT[1], 
-                                        text=str(index//2 + 1)) #+ ('W' if index % 2 == 0 else 'B') + ' ' + display_score)
+        _OVERVIEW_TEXT[0].Widget.itemconfig(_OVERVIEW_TEXT[1], 
+                                            text=str(index//2 + 1)) #+ ('W' if index % 2 == 0 else 'B') + ' ' + display_score)
+    except IndexError:
+        pass
 
 
 def _eval_waiting(event):
@@ -300,6 +345,11 @@ def _wait_for_move():
     WINDOW['RETRY-MOVE'].Update(disabled=True)
 
 
+def _eval_blank():
+    _update_menu_graph('', 'white', BG_COLOR, DEFAULT_FONT)
+    WINDOW['RETRY-MOVE'].Update(disabled=True)
+
+
 def _update_menu_graph(text, text_color, bg_color, font):
     WINDOW['menu-graph'].Erase()
     WINDOW['menu-graph'].Update(background_color=bg_color)
@@ -329,19 +379,40 @@ def _switch_to_move(index):
 
     print("Best move: %s" % (_SCORES[index][1]))
 
-    _wait_for_move()
-    rating_index = floor(index / 2)
+    if 'on' in WINDOW['BUTTON-RATE-EACH-MOVE'].__dict__['metadata']:
+        _wait_for_move()
 
+    rating_index = floor(index / 2)
     butil.SetPosFromFEN(butil._PGN_DATA[index][0])
+    butil.AnalysisEvent(None)
+
     if rating_index - 1 >= 0:
         butil.SetLastMove(butil._PGN_DATA[index-1][1][0], butil._PGN_DATA[index-1][1][1])
     else:
         butil.ResetLastMove()
-    butil.SetWrongMove(butil._PGN_DATA[index][1][0], butil._PGN_DATA[index][1][1], _RATINGS[rating_index])
+    if 'on' in WINDOW['BUTTON-RATE-EACH-MOVE'].__dict__['metadata']:
+        butil.SetWrongMove(butil._PGN_DATA[index][1][0], butil._PGN_DATA[index][1][1], _RATINGS[rating_index])
     butil.ResetSolution()
     butil.UpdateBoard()
 
     butil.UnlockBoard()
+
+    """butil.FocusCurrentPosition(True)
+    butil.RateEachMove(True)
+
+    WINDOW['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on.disabled'
+    WINDOW['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(False))
+
+    WINDOW['BUTTON-PLAYTHRU'].__dict__['metadata'] = 'off'
+    WINDOW['BUTTON-PLAYTHRU'].Update(image_data=builder._button_off_data(True))"""
+
+
+def _close(window):
+    analysis.SaveStorage()
+    analysis.Close()
+
+    window.close()
+
 
 
 if __name__ == '__main__':

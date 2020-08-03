@@ -237,18 +237,24 @@ def _xy_to_board_image_coords(row, column):
 
 
 def AnalysisEvent(event):
-	eval, best_move, fen = analysis.CurrentAnalysis()
-
-	if fen != _CURR_DATA['fen']:
-		# possible edge case due to multithreading
+	eval, _, depth = analysis.CurrentAnalysis(_CURR_DATA['fen'])
+	eval = eval if ' w ' in _CURR_DATA['fen'] else -eval
+	if eval == None:
 		return
-	
+
 	_adjust_bar(eval)
+	_adjust_depth(depth)
 
 
 def _adjust_text(string, loc): 
 	__ANALYSIS_GRAPH__.Widget.itemconfig(__ANALYSIS_TEXT__, text=string)
 	__ANALYSIS_GRAPH__.Widget.coords(__ANALYSIS_TEXT__, loc)
+
+
+def _adjust_depth(depth):
+	text = _WINDOW.FindElement('analysis-text', silent_on_error=True)
+	val = "depth %s/%s" % (depth, DEPTH) if int(depth) <= DEPTH else "depth %s*" % depth
+	text.Update(value=val)
 
 
 def _adjust_bar(eval):
@@ -283,12 +289,14 @@ def _adjust_bar(eval):
 				_adjust_text("M-" + eval.split('+')[1], (7, 20))
 				_set_bar_height(_SIZE)
 	else:
-		adjusted_eval = eval/100 if _CURR_DATA['turn'] == 'w' else -eval/100
+		adjusted_eval = eval/100
 		_adjust_text(str(adjusted_eval), 
 						(7, 20) if adjusted_eval < 0 else (7, 790))
 		
-		proportion = mathemagics.Transform(eval/100 if _CURR_DATA['turn'] == 'b' else -eval/100, 17)
-		_set_bar_height(_SIZE * proportion)
+		proportion = -mathemagics.Transform(adjusted_eval)
+		# Transform is set negative b/c of how the graph coords are set up
+
+		_set_bar_height(_SIZE/2 * (1 + proportion))
 
 
 def _data_from_fen(FEN):
@@ -301,7 +309,7 @@ def _data_from_fen(FEN):
 		temp = []
 		for char in lines[row]:
 			if char.isnumeric():
-				for i in range(0, int(char)):
+				for _ in range(0, int(char)):
 					temp.append('')
 			else:
 				temp.append(char)
@@ -766,8 +774,6 @@ def _make_move(moving_from, moving_to, promotion=None):
 		_ROOT.event_generate("<<Eval-Waiting>>")
 
 		old_score, best_move = analysis.SyncAnalysis(prev_fen) # should already be stored, so this should go immediately
-		print("best_move: %s" % (best_move))
-		print("rank file transforms: %s%s" % (_xy_to_rank_file(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1]), _xy_to_rank_file(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1])))
 		if best_move[:2] == _xy_to_rank_file(_LAST_MOVE_FROM[0], _LAST_MOVE_FROM[1]) and best_move[2:4] == _xy_to_rank_file(_LAST_MOVE_TO[0], _LAST_MOVE_TO[1]) and	(len(best_move) == 4 or best_move[4] == promotion.lower()):
 				_ROOT.event_generate("<<Eval-Done-Best Move>>")
 		else:

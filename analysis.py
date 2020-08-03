@@ -31,7 +31,6 @@ _INITIATED = False
 
 
 def Init(root):
-    global analysis_thread
     global _PROC
     global _UCI_ENGINE_LOC
     global _ROOT
@@ -58,6 +57,9 @@ def Close():
     global _NEW_FEN_BOOL
     global _ALIVE
 
+    if not _ALIVE:
+        return
+
     _write('quit\n', _PROC)
 
     _ALIVE = False
@@ -76,6 +78,9 @@ def Close():
 
 def SaveStorage():
     global _STORAGE
+
+    if _STORAGE == {}:
+        return
 
     with open('.storage', 'w+') as f:
         for item in _STORAGE:
@@ -148,7 +153,6 @@ def _writing_thread_run():
         _write('position fen ' + _WRITING_FEN + '\n', _PROC)
         _write('go depth ' + str(DEPTH) + '\n', _PROC)
 
-
         _WAITING_FOR_UPDATE_READ.acquire()
         _WAITING_FOR_UPDATE_READ.notify()
         _WAITING_FOR_UPDATE_READ.release()
@@ -178,12 +182,17 @@ def _reading_thread_run():
             _WAITING_FOR_UPDATE_READ.release()
 
         try:
-            _CURR_EVAL = _STORAGE[_PRIMED_FEN][0]
-            _CURR_BEST_MOVE = _STORAGE[_PRIMED_FEN][1]
-            _READING_FEN = _PRIMED_FEN
+            if _STORAGE[_PRIMED_FEN][2] >= DEPTH:
+                _CURR_EVAL = _STORAGE[_PRIMED_FEN][0]
+                _CURR_BEST_MOVE = _STORAGE[_PRIMED_FEN][1]
+                _CURR_DEPTH = _STORAGE[_PRIMED_FEN][2]
+                _READING_FEN = _PRIMED_FEN
 
-            _raise_event()
-            _READ_FEN_COUNT += 1
+                print("1")
+                _raise_event()
+                _READ_FEN_COUNT += 1
+            else:
+                raise KeyError
         except KeyError:
             while _WRITTEN_FEN_COUNT != _READ_FEN_COUNT:
                 try:
@@ -232,9 +241,10 @@ def _reading_thread_run():
                         _CURR_BEST_MOVE = split[1]
                         _READ_FEN_COUNT += 1
                         
-                        _STORAGE[_READING_FEN] = (_CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH)
+                        _STORAGE[_READING_FEN] = (_CURR_EVAL, _CURR_BEST_MOVE, DEPTH)
+                    
+                    _raise_event()
                 
-                _raise_event()
 
     sys.exit(0)
 
@@ -305,16 +315,29 @@ def _get_sync_score(proc):
     return curr_eval, best_move
 
 
-def CurrentAnalysis():
+def CurrentAnalysis(FEN):
+    global _STORAGE
+
+    if not FEN in _STORAGE:
+        if _READING_FEN == FEN:
+            return _CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH
+        return None, None, None
+    
+    s = _STORAGE[FEN]
+    return s[0], s[1], s[2]
+
+
+"""def CurrentAnalysis():
     global _CURR_EVAL
     global _CURR_BEST_MOVE
     global _READING_FEN
     global _ALIVE
+    global _CURR_DEPTH
 
     if not _ALIVE:
         return None
 
-    return _CURR_EVAL, _CURR_BEST_MOVE, _READING_FEN
+    return _CURR_EVAL, _CURR_BEST_MOVE, _CURR_DEPTH, _READING_FEN"""
 
 
 def SetFen(FEN):
@@ -331,12 +354,16 @@ def SetFen(FEN):
     if not _ALIVE:
         return
 
-    _PRIMED_FEN = FEN
-    _NEW_FEN_BOOL = True
-    _WRITTEN_FEN_COUNT += 1
-    _WAITING_FOR_UPDATE_WRITE.acquire()
-    _WAITING_FOR_UPDATE_WRITE.notify()
-    _WAITING_FOR_UPDATE_WRITE.release()
+    if FEN in _STORAGE and _STORAGE[FEN][2] >= DEPTH:
+        # don't clog the analysis threads if we already have the result for the analysis
+        _raise_event()
+    else:
+        _PRIMED_FEN = FEN
+        _NEW_FEN_BOOL = True
+        _WRITTEN_FEN_COUNT += 1
+        _WAITING_FOR_UPDATE_WRITE.acquire()
+        _WAITING_FOR_UPDATE_WRITE.notify()
+        _WAITING_FOR_UPDATE_WRITE.release()
 
 
 def _write(str, proc):
