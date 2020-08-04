@@ -18,6 +18,67 @@ def Transform(eval):
     ret = min(95, ret)
     return ret/100 if eval > 0 else -ret/100
 
+
+"""
+# Based on integral((x/s-s)^2) where s = (3/2)^(1/4)
+s = pow(3/2, 1/4)
+def _antiderivative(x):
+    #if x > 0:
+    #    x += pow(s, 2)
+    #    return (pow(x, 3) / (3*pow(s, 2))) - pow(x, 2) + pow(s, 2) * x
+
+    #x = x + pow(s, 2)
+    x += pow(s, 2)
+    return (pow(x, 3) / (3*pow(s, 2))) - pow(x, 2) + pow(s, 2) * x
+
+
+def ExpandCurve(a, b, ystart, yend):
+    global s
+    # Automatically finds a step that will be (somewhat) close to 1/OVERVIEW_GRAPH_DIVISOR and will be a whole number multiple of b-a
+    length = b-a
+    integer = 1
+
+    while length/integer > 1:
+        integer += 1
+    step = (length / integer) / OVERVIEW_GRAPH_DIVISOR
+
+    points = []
+    x = a + step # skip 0 b/c it will always be (x, ystart)
+    ycurr = ystart
+    ytotal = 0
+    
+    total = 0
+    while x <= b:
+        x_s = (x - (a+b)/2) /(length/pow(s, 2))*2
+
+        y = _antiderivative(x_s) - total
+        total += y
+
+        print("y: %s" % (y))
+
+        x += step
+        x = round(x, 4)
+        ystep = (yend-ystart)*y
+        ycurr += ystep
+        
+        if ystart > yend:
+            points.append([x, min(ystart, max(yend, ycurr))])
+        else:
+            points.append([x, min(yend, max(ystart, ycurr))])
+        
+        ytotal += y
+        
+    print(ytotal)
+    points[-1][1] = yend
+    pts = []
+    for point in points:
+        pts.append(tuple(point))
+
+    return [(a, ystart)] + pts
+"""
+
+
+# Based on integral(2-|4x|)
 def ExpandCurve(a, b, ystart, yend):
     # Automatically finds a step that will be (somewhat) close to 1/OVERVIEW_GRAPH_DIVISOR and will be a whole number multiple of b-a
     length = b-a
@@ -52,5 +113,8 @@ def ExpandCurve(a, b, ystart, yend):
         ytotal += y
         
     points[-1][1] = yend
-    
-    return [[a, ystart]] + points
+    pts = []
+    for point in points:
+        pts.append(tuple(point))
+
+    return [(a, ystart)] + pts

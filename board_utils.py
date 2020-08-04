@@ -50,6 +50,7 @@ _SIZE = 0
 _FOCUS_CURRENT = False
 _RATE_EACH = False
 _BOARD_LOCK = False
+_SHOW_BEST = False
 
 _PROMOTING = False
 
@@ -58,7 +59,6 @@ def Init(window, size):
 	global _ROOT
 	global _WINDOW
 	_WINDOW = window
-	print("_WINDOW_1: %s" % (_WINDOW))
 	_ROOT = window.TKroot
 
 	window['board-graph'].Widget.bind("<Motion>", _board_motion_event)
@@ -237,10 +237,17 @@ def _xy_to_board_image_coords(row, column):
 
 
 def AnalysisEvent(event):
-	eval, _, depth = analysis.CurrentAnalysis(_CURR_DATA['fen'])
+	global _BEST_MOVE
+
+	eval, best_move, depth = analysis.CurrentAnalysis(_CURR_DATA['fen'])
 	eval = eval if ' w ' in _CURR_DATA['fen'] else -eval
 	if eval == None:
 		return
+
+	if best_move != _BEST_MOVE and best_move != "":
+		_BEST_MOVE = best_move
+		_set_best(_BEST_MOVE)
+		UpdateBoard()
 
 	_adjust_bar(eval)
 	_adjust_depth(depth)
@@ -355,9 +362,9 @@ def _draw_board():
 	global _WRONG_FROM
 	global _WRONG_TO
 	global _WRONG_TYPE
-	global _SOLUTION_FROM
-	global _SOLUTION_TO
-	global _SOLUTION_PIECE
+	global _BEST_FROM
+	global _BEST_TO
+	global _BEST_PIECE
 
 	if _BOARD_GRAPH == None:
 		return
@@ -403,8 +410,8 @@ def _draw_board():
 				else:
 					locx, locy = _xy_to_board_image_coords(7-j, 7-i)
 
-				if _SOLUTION_TO == (j, i) and _SOLUTION_PIECE != None:
-					_draw_piece(_SOLUTION_PIECE, (locx, locy), False)
+				if _BEST_TO == (j, i) and _BEST_PIECE != None:
+					_draw_piece(_BEST_PIECE, (locx, locy), False)
 				elif transparent == (j, i):
 					_draw_piece(board[i][j], (locx, locy), False)
 				else:
@@ -433,8 +440,9 @@ def _draw_board():
 
 		_draw_arrow(_WRONG_FROM, _WRONG_TO, color)
 
-	if _SOLUTION_FROM != (-1, -1):
-		_draw_arrow(_SOLUTION_FROM, _SOLUTION_TO, BEST_MOVE_COLOR)
+	if _SHOW_BEST:
+		if _BEST_FROM != (-1, -1):
+			_draw_arrow(_BEST_FROM, _BEST_TO, BEST_MOVE_COLOR)
 
 		
 
@@ -523,6 +531,11 @@ def RateEachMove(boolean):
 def RetryMove():
 	global _BOARD_LOCK
 	_BOARD_LOCK = False
+
+
+def ShowBest(boolean):
+	global _SHOW_BEST
+	_SHOW_BEST = boolean
 
 
 def _draw_piece(piece, loc, opaque):
@@ -662,6 +675,8 @@ def _make_move(moving_from, moving_to, promotion=None):
 	
 	if _FOCUS_CURRENT:
 		_BOARD_LOCK = True
+
+	ResetWrongMove()
 
 	x = moving_to[0]
 	y = moving_to[1]
@@ -832,27 +847,22 @@ def SetWrongMove(wrong_from, wrong_to, wrong_type):
 	_WRONG_TYPE = wrong_type
 
 
-_SOLUTION_FROM = (-1, -1)
-_SOLUTION_TO = (-1, -1)
-_SOLUTION_PIECE = None
-def SetSolution(str):
-	global _SOLUTION_FROM
-	global _SOLUTION_TO
-	global _SOLUTION_PIECE
+_BEST_FROM = (-1, -1)
+_BEST_TO = (-1, -1)
+_BEST_PIECE = None
+_BEST_MOVE = "" # for faster comparisons
+def _set_best(str):
+	global _BEST_FROM
+	global _BEST_TO
+	global _BEST_PIECE
+	global _BEST_MOVE
 
-	_SOLUTION_FROM = _rank_file_to_xy(str[:2])
-	_SOLUTION_TO = _rank_file_to_xy(str[2:4])
+	_BEST_MOVE = str
+	_BEST_FROM = _rank_file_to_xy(str[:2])
+	_BEST_TO = _rank_file_to_xy(str[2:4])
 
 	if len(str) == 5:
-		_SOLUTION_PIECE = str[4]
-
-
-def ResetSolution():
-	global _SOLUTION_FROM
-	global _SOLUTION_TO
-
-	_SOLUTION_FROM = (-1, -1)
-	_SOLUTION_TO = (-1, -1)
+		_BEST_PIECE = str[4]
 
 
 def UpdateBoard():

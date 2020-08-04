@@ -9,7 +9,7 @@ from analysis import _categorize_move
 
 
 def _set_compression_images(window):
-    switch_names = [ 'BUTTON-PLAYTHRU', 'BUTTON-RATE-EACH-MOVE', 'BUTTON-ANALYSIS-BAR' ]
+    switch_names = [ 'BUTTON-PLAYTHRU', 'BUTTON-RATE-EACH-MOVE', 'BUTTON-ANALYSIS-BAR', 'BUTTON-SHOW-BEST-MOVE' ]
     for name in switch_names:
         info = window[name].__dict__
         if '.disabled' in info['metadata']:
@@ -31,7 +31,7 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
         if ele != None:
             ele.Widget.config(background='white', borderwidth=2)
 
-    switch_names = [ 'BUTTON-PLAYTHRU', 'BUTTON-RATE-EACH-MOVE', 'BUTTON-ANALYSIS-BAR' ]
+    switch_names = [ 'BUTTON-PLAYTHRU', 'BUTTON-RATE-EACH-MOVE', 'BUTTON-ANALYSIS-BAR', 'BUTTON-SHOW-BEST-MOVE' ]
     if window.FindElement(switch_names[0], silent_on_error=True) != None:
         callbacks.append(_set_compression_images)
 
@@ -44,9 +44,8 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
         scores = overview_graph.__dict__['metadata']
 
         max_score = 2000
-        OVERVIEW_SIZE[1] = OVERVIEW_PER_SCORE_MULTIPLIER * len(scores)
 
-        y_step = OVERVIEW_PER_SCORE_MULTIPLIER
+        y_step = max(OVERVIEW_PER_SCORE_MULTIPLIER, OVERVIEW_SIZE[1]/len(scores))
         for i in range(1, len(scores)):
             if type(scores[i]) == str:
                 if '-' in scores[i]:
@@ -80,7 +79,7 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
             xs.append(mathemagics.Transform(val) * OVERVIEW_MAX_WIDTH)
 
         for i in range(0, len(xs)):
-            overview_graph.DrawText(str(vals[i]), (xs[i], 10), font=DEFAULT_FONT_SMALL)
+            overview_graph.DrawText('+' + str(vals[i]), (xs[i], 10), font=DEFAULT_FONT_SMALL)
             overview_graph.DrawText(str(-vals[i]), (-xs[i], 10), font=DEFAULT_FONT_SMALL)
 
         step = 10
@@ -146,16 +145,11 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
     return callbacks
 
 
-def walrus(variable, value):
-    variable = value
-    return value
-
-
 def BoardElements():
 	board = [
 		[
-			sg.Text("Hickory Neckboy", font=DEFAULT_FONT_BOLD, background_color=BG_COLOR, key='black-player'),
-			sg.Text("(2800)", font=DEFAULT_FONT, background_color=BG_COLOR, key='black-rating')
+			sg.Text("Black Player", font=DEFAULT_FONT_BOLD, background_color=BG_COLOR, key='black-player'),
+			sg.Text("(1000)", font=DEFAULT_FONT, background_color=BG_COLOR, key='black-rating')
 		],
 		[
 			sg.Graph(canvas_size=(CANVAS_SIZE, CANVAS_SIZE),
@@ -166,8 +160,8 @@ def BoardElements():
 			)
 		],
 		[
-			sg.Text("Nuhthan Kelbith", font=DEFAULT_FONT_BOLD, background_color=BG_COLOR, key='white-player'),
-			sg.Text("(1337)", font=DEFAULT_FONT, background_color=BG_COLOR, key='white-rating')
+			sg.Text("White Player", font=DEFAULT_FONT_BOLD, background_color=BG_COLOR, key='white-player'),
+			sg.Text("(1000)", font=DEFAULT_FONT, background_color=BG_COLOR, key='white-rating')
 		]
 	]
 
@@ -175,7 +169,7 @@ def BoardElements():
 
 
 def MatchOverviewGraph(scores):
-    OVERVIEW_SIZE[1] = (OVERVIEW_PER_SCORE_MULTIPLIER) * len(scores)
+    OVERVIEW_SIZE[1] = max(OVERVIEW_PER_SCORE_MULTIPLIER * (len(scores)-1), OVERVIEW_COLUMN_SIZE[1])
 
     graph = sg.Graph(
                         canvas_size=OVERVIEW_SIZE,
@@ -235,6 +229,10 @@ def AnalysisMenuElements(ratings):
             sg.Text('Analysis Bar', font=DEFAULT_FONT, background_color=BG_COLOR)
         ],
         [
+            sg.Button('', image_data=_button_off_data(True), key='BUTTON-SHOW-BEST-MOVE', button_color=(None, None), metadata='off'),
+            sg.Text('Show Best Move', font=DEFAULT_FONT, background_color=BG_COLOR)
+        ],
+        [
             sg.Column([
                         [
                             sg.Text('Threshold: ', background_color=BG_COLOR),
@@ -245,13 +243,10 @@ def AnalysisMenuElements(ratings):
                             sg.Button('Retry Move', disabled=True, key='RETRY-MOVE')
                         ],
                         [
-                            sg.Button('Show Solution', key='SHOW-SOLUTION')
-                        ],
-                        [
-                            sg.Button('Left'),
+                            sg.Button('Back', key='BACK-A-MOVE'),
                             sg.Text('Back', background_color=BG_COLOR),
                             sg.Text('Forth', background_color=BG_COLOR),
-                            sg.Button('Right')
+                            sg.Button('Next', key='FORWARD-A-MOVE')
                         ]
                     ], background_color=BG_COLOR, element_justification='center', justification='center')
         ]
