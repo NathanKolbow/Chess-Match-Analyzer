@@ -119,7 +119,10 @@ def run():
     analysis_menu, columns = builder.AnalysisMenuElements(_RATINGS)
     analysis_bar, analysis_text = builder.AnalysisBarElements()
     analysis_bar_column = sg.Column([[analysis_bar], [analysis_text]], background_color=BG_COLOR, pad=((0, 0), (32, 0)), element_justification='center')
-    overview = builder.MatchOverviewGraph([i for (i, j) in _SCORES])
+    overview_column = sg.Column([[builder.MatchOverviewGraph([i for (i, j) in _SCORES])]], background_color=BG_COLOR, pad=((0, 0), (32, 0)),
+                                justification='center', element_justification='center', size=OVERVIEW_COLUMN_SIZE, 
+                                scrollable=OVERVIEW_SIZE[1] > OVERVIEW_COLUMN_SIZE[1] or OVERVIEW_SIZE[0] > OVERVIEW_COLUMN_SIZE[0], 
+                                vertical_scroll_only=OVERVIEW_COLUMN_SIZE[0] >= OVERVIEW_SIZE[0])
 
     thresh = INACCURACY*2 + (0 if _PLAYER == 'w' else 1)
     window = sg.Window("Match Analysis", [ 
@@ -127,10 +130,7 @@ def run():
                                                 analysis_bar_column,
                                                 sg.Column(board, background_color=BG_COLOR), 
                                                 sg.Column(analysis_menu, background_color=BG_COLOR), 
-                                                sg.Column([[overview]],
-                                                            background_color=BG_COLOR, pad=((0, 0), (32, 0)), justification='center', element_justification='center', size=OVERVIEW_COLUMN_SIZE,
-                                                            scrollable=OVERVIEW_SIZE[1] > OVERVIEW_COLUMN_SIZE[1] or OVERVIEW_SIZE[0] > OVERVIEW_COLUMN_SIZE[0], 
-                                                            vertical_scroll_only=OVERVIEW_COLUMN_SIZE[0] >= OVERVIEW_SIZE[0])
+                                                overview_column
                                             ] 
                                         ], background_color=BG_COLOR)
     WINDOW = window
@@ -157,10 +157,9 @@ def run():
 
     while True:
         event, _ = window.read()
+        print(event)
         if butil._PROMOTING:
             continue
-
-        switch_names = [ 'BUTTON-PLAYTHRU', 'BUTTON-RATE-EACH-MOVE', 'BUTTON-ANALYSIS-BAR', 'BUTTON-SHOW-BEST-MOVE' ]
 
         if event == sg.WIN_CLOSED:
             break
@@ -184,59 +183,86 @@ def run():
         elif event == 'FORWARD-A-MOVE':
             if _CURR_INDEX != len(_RATINGS) - 1:
                 _switch_to_move(_CURR_INDEX + 1)
-        elif event in switch_names:
+        elif event in MENU_SWITCH_NAMES:
             info = window[event].__dict__
             print(info['metadata'])
             if not '.disabled' in info['metadata']:
                 if 'on' in info['metadata']:
                     # Flipping switch off
-                    window[event].Update(image_data=builder._button_off_data(True))
                     info['metadata'] = info['metadata'].replace('n', 'ff')
-
-                    if event == 'BUTTON-PLAYTHRU':
-                        window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on.disabled'
-                        window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(False))
-
-                        _wait_for_move()
-                        butil.FocusCurrentPosition(True)
-                        butil.RateEachMove(True)
-                        butil.LockBoard()
-                    elif event == 'BUTTON-ANALYSIS-BAR':
-                        analysis_bar.Update(visible=False)
-                        analysis_text.Update(visible=False)
-                    elif event == 'BUTTON-RATE-EACH-MOVE':
-                        _eval_blank()
-                        butil.RateEachMove(False)
-                    elif event == 'BUTTON-SHOW-BEST-MOVE':
-                        butil.ShowBest(False)
+                    if event == 'BUTTON-PLAYER':
+                        # Changing to black
+                        window[event].Update(image_data=builder._button_black_data(True))
+                        _PLAYER = 'b'
+                        butil._flip_board()
                         butil.UpdateBoard()
-                else:
+
+                        new_thresh = thresh + 1
+                        columns[thresh].Update(visible=False)
+                        columns[new_thresh].Update(visible=True)
+                        thresh = new_thresh
+                    else:
+                        window[event].Update(image_data=builder._button_off_data(True))
+
+                        if event == 'BUTTON-PLAYTHRU':
+                            window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on.disabled'
+                            window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(False))
+
+                            _wait_for_move()
+                            butil.FocusCurrentPosition(True)
+                            butil.RateEachMove(True)
+                            butil.LockBoard()
+                        elif event == 'BUTTON-ANALYSIS-BAR':
+                            analysis_bar.Update(visible=False)
+                            analysis_text.Update(visible=False)
+                        elif event == 'BUTTON-RATE-EACH-MOVE':
+                            _eval_blank()
+                            butil.RateEachMove(False)
+                        elif event == 'BUTTON-SHOW-BEST-MOVE':
+                            butil.ShowBest(False)
+                            butil.UpdateBoard()
+                        elif event == 'BUTTON-ANALYSIS-OVERVIEW':
+                            overview_column.Update(visible=False)
+                elif 'off' in info['metadata']:
                     # Flipping switch on
-                    window[event].Update(image_data=builder._button_on_data(True))
                     info['metadata'] = info['metadata'].replace('ff', 'n')
-
-                    if event == 'BUTTON-PLAYTHRU':
-                        window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on'
-                        window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(True))
-                        
-                        window['RETRY-MOVE'].Update(disabled=True)
-
-                        butil.ResetWrongMove()
+                    if event == 'BUTTON-PLAYER':
+                        # Changing to white
+                        window[event].Update(image_data=builder._button_white_data(True))
+                        _PLAYER = 'w'
+                        butil._flip_board()
                         butil.UpdateBoard()
 
-                        _eval_blank()
-                        butil.FocusCurrentPosition(False)
-                        butil.UnlockBoard()
-                    elif event == 'BUTTON-ANALYSIS-BAR':
-                        analysis_bar.Update(visible=True)
-                        analysis_text.Update(visible=True)
-                    elif event == 'BUTTON-RATE-EACH-MOVE':
-                        _wait_for_move()
-                        butil.RateEachMove(True)
-                    elif event == 'BUTTON-SHOW-BEST-MOVE':
-                        print("Showing best move")
-                        butil.ShowBest(True)
-                        butil.UpdateBoard()
+                        new_thresh = thresh - 1
+                        columns[thresh].Update(visible=False)
+                        columns[new_thresh].Update(visible=True)
+                        thresh = new_thresh
+                    else:
+                        window[event].Update(image_data=builder._button_on_data(True))
+
+                        if event == 'BUTTON-PLAYTHRU':
+                            window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on'
+                            window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(True))
+                            
+                            window['RETRY-MOVE'].Update(disabled=True)
+
+                            butil.ResetWrongMove()
+                            butil.UpdateBoard()
+
+                            _eval_blank()
+                            butil.FocusCurrentPosition(False)
+                            butil.UnlockBoard()
+                        elif event == 'BUTTON-ANALYSIS-BAR':
+                            analysis_bar.Update(visible=True)
+                            analysis_text.Update(visible=True)
+                        elif event == 'BUTTON-RATE-EACH-MOVE':
+                            _wait_for_move()
+                            butil.RateEachMove(True)
+                        elif event == 'BUTTON-SHOW-BEST-MOVE':
+                            butil.ShowBest(True)
+                            butil.UpdateBoard()
+                        elif event == 'BUTTON-ANALYSIS-OVERVIEW':
+                            overview_column.Update(visible=True)
 
 
 

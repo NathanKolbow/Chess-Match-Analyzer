@@ -9,8 +9,7 @@ from analysis import _categorize_move
 
 
 def _set_compression_images(window):
-    switch_names = [ 'BUTTON-PLAYTHRU', 'BUTTON-RATE-EACH-MOVE', 'BUTTON-ANALYSIS-BAR', 'BUTTON-SHOW-BEST-MOVE' ]
-    for name in switch_names:
+    for name in MENU_SWITCH_NAMES:
         info = window[name].__dict__
         if '.disabled' in info['metadata']:
             continue
@@ -31,11 +30,10 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
         if ele != None:
             ele.Widget.config(background='white', borderwidth=2)
 
-    switch_names = [ 'BUTTON-PLAYTHRU', 'BUTTON-RATE-EACH-MOVE', 'BUTTON-ANALYSIS-BAR', 'BUTTON-SHOW-BEST-MOVE' ]
-    if window.FindElement(switch_names[0], silent_on_error=True) != None:
+    if window.FindElement(MENU_SWITCH_NAMES[0], silent_on_error=True) != None:
         callbacks.append(_set_compression_images)
 
-        for name in switch_names:
+        for name in MENU_SWITCH_NAMES:
             window[name].Widget.config(highlightthickness=0, background=BG_COLOR, borderwidth=0, activebackground=BG_COLOR, 
                                         disabledforeground=None)
 
@@ -217,6 +215,10 @@ def AnalysisMenuElements(ratings):
         ],
         columns,
         [
+            sg.Button('', image_data=_button_white_data(True), key='BUTTON-PLAYER', button_color=(None, None), metadata='on'),
+            sg.Text('Perspective', font=DEFAULT_FONT, background_color=BG_COLOR)
+        ],
+        [
             sg.Button('', image_data=_button_off_data(True), key='BUTTON-PLAYTHRU', button_color=(None, None), metadata='off'),
             sg.Text('Play-through Mode', font=DEFAULT_FONT, background_color=BG_COLOR)
         ],
@@ -227,6 +229,10 @@ def AnalysisMenuElements(ratings):
         [
             sg.Button('', image_data=_button_on_data(True), key='BUTTON-ANALYSIS-BAR', button_color=(None, None), metadata='on'),
             sg.Text('Analysis Bar', font=DEFAULT_FONT, background_color=BG_COLOR)
+        ],
+        [
+            sg.Button('', image_data=_button_on_data(True), key='BUTTON-ANALYSIS-OVERVIEW', button_color=(None, None), metadata='on'),
+            sg.Text('Analysis Graph', font=DEFAULT_FONT, background_color=BG_COLOR)
         ],
         [
             sg.Button('', image_data=_button_off_data(True), key='BUTTON-SHOW-BEST-MOVE', button_color=(None, None), metadata='off'),
@@ -259,6 +265,26 @@ def AnalysisBarElements():
     analysis_bar = sg.Graph(canvas_size=(50, CANVAS_SIZE), graph_bottom_left=(0,0), graph_top_right=(50,CANVAS_SIZE), key="analysis-graph", background_color=BG_COLOR)
     text = sg.Text('depth: 100/100', background_color=BG_COLOR, font=DEFAULT_FONT_SMALL, text_color='black', key='analysis-text')
     return analysis_bar, text
+
+
+def _button_white_data(enabled):
+    button_img = Image.open('img/interface/button-white' + ('' if enabled else '-disabled') + '.png')
+    button_img = button_img.resize(SWITCH_SIZE)
+
+    buffered = BytesIO()
+    button_img.save(buffered, format="PNG")
+    
+    return base64.b64encode(buffered.getvalue())
+
+    
+def _button_black_data(enabled):
+    button_img = Image.open('img/interface/button-black' + ('' if enabled else '-disabled') + '.png')
+    button_img = button_img.resize(SWITCH_SIZE)
+
+    buffered = BytesIO()
+    button_img.save(buffered, format="PNG")
+    
+    return base64.b64encode(buffered.getvalue())
 
 
 def _button_mid_data(enabled):
