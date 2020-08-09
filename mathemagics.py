@@ -1,10 +1,20 @@
 from globals import OVERVIEW_GRAPH_DIVISOR
 from math import log
 
+"""
+    Basically clamps eval between (-1750, 1750) and linearly maps that range to (-95, 95)
+"""
+def Transform(eval):
+    if eval > 1750:
+        return 95
+    elif eval < -1750:
+        return -95
+    return eval * 0.0542857143 # (eval / 1750 * 95)
+
 
 """
-    Maps floats from -Inf to Inf (softmin/max -25/25) to proportions from -0.95 to 0.95 on a smooth, steep curve
-"""
+    Maps floats from -Inf to Inf (softmin/max -25/25) to proportions from -95 to 95 on a smooth, steep curve
+
 def Transform(eval):
     if eval == 0:
         return 0
@@ -17,7 +27,7 @@ def Transform(eval):
     
     ret = min(95, ret)
     return ret/100 if eval > 0 else -ret/100
-
+"""
 
 """
 # Based on integral((x/s-s)^2) where s = (3/2)^(1/4)
