@@ -73,7 +73,7 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
         overview_graph.DrawLine((0, 0), (0, OVERVIEW_SIZE[1]), color=OVERVIEW_CENTER_COLOR, width=OVERVIEW_CENTER_WIDTH)
 
         # Draw dashed lines
-        vals = [2, 5, 12]
+        vals = [3, 6, 9, 12, 15, 18]
         xs = []
         for val in vals:
             xs.append(mathemagics.Transform(val) * OVERVIEW_MAX_WIDTH)

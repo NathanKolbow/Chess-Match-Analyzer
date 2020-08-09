@@ -36,7 +36,7 @@ def run():
     global _CURR_INDEX
     global _PLAYER
 
-    """try:
+    try:
         clip = clipboard.paste()
         ret = butil.PGNToFENList(clip)
         if not ret:
@@ -66,9 +66,9 @@ def run():
                     pass
 
                 failure_text.Update(visible=True)
-        del window"""
+        del window
 
-    butil.PGNToFENList("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6 dxc6 5. Nxe5 Qd4 6. Nf3 Qxe4+ 7. Qe2 Qxe2+ 8. Kxe2 Nf6")
+    #butil.PGNToFENList("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6 dxc6 5. Nxe5 Qd4 6. Nf3 Qxe4+ 7. Qe2 Qxe2+ 8. Kxe2 Nf6")
 
     bar = sg.ProgressBar(len(butil._PGN_DATA), orientation='horizontal', size=(20, 20), key='progbar')
     window = sg.Window("Loading Analyses", [[bar]], background_color=BG_COLOR)
