@@ -431,6 +431,10 @@ def _categorize_move(score_before, score_after):
 
     diff = score_after - score_before
     if diff < -250:
+        if diff < -1000:
+            return BLUNDER
+        elif abs(score_before) > 1000 and abs(score_after) > 500:
+            return MISTAKE
         return BLUNDER
     elif diff < -130:
         return MISTAKE

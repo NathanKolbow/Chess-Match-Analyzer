@@ -37,6 +37,12 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
             window[name].Widget.config(highlightthickness=0, background=BG_COLOR, borderwidth=0, activebackground=BG_COLOR, 
                                         disabledforeground=None)
 
+    # Put a border on the rating columns
+    if window.FindElement('w-ratings-column-0', silent_on_error=True) != None:
+        for i in range(BEST_MOVE, BLUNDER + 1):
+            window['w-ratings-column-%s' % (i)].Widget.config(borderwidth=2, background='white')
+            window['b-ratings-column-%s' % (i)].Widget.config(borderwidth=2, background='white')
+
     overview_graph = window.FindElement('overview-graph', silent_on_error=True)
     if overview_graph != None:
         scores = overview_graph.__dict__['metadata']
@@ -74,7 +80,7 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
         vals = [3, 6, 9, 12, 15, 18]
         xs = []
         for val in vals:
-            xs.append(mathemagics.Transform(val) * OVERVIEW_MAX_WIDTH)
+            xs.append(mathemagics.TransformLinear(val) * OVERVIEW_MAX_WIDTH)
 
         for i in range(0, len(xs)):
             overview_graph.DrawText('+' + str(vals[i]), (xs[i], 10), font=DEFAULT_FONT_SMALL)
@@ -94,8 +100,8 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
         # Draw lines
         for i in range(1, len(scores)):
             if y_step > 2:
-                point_from = (mathemagics.Transform(scores[i-1]/100) * OVERVIEW_MAX_WIDTH, (i-1)*y_step)
-                point_to = (mathemagics.Transform(scores[i]/100) * OVERVIEW_MAX_WIDTH, (i)*y_step)
+                point_from = (mathemagics.TransformLinear(scores[i-1]/100) * OVERVIEW_MAX_WIDTH, (i-1)*y_step + y_step/2)
+                point_to = (mathemagics.TransformLinear(scores[i]/100) * OVERVIEW_MAX_WIDTH, (i)*y_step + y_step/2)
                 points = mathemagics.ExpandCurve(point_from[1], point_to[1], point_from[0], point_to[0])
                 
                 if (i-1) % 2 == 0:
@@ -107,14 +113,12 @@ def PostFinalization(window, overview_hover_func=None, overview_hover_text=None,
                     points[i] = (points[i][1], points[i][0])
                     overview_graph.DrawLine(points[i-1], points[i], color=color, width=OVERVIEW_LINE_WIDTH)
             else:
-                overview_graph.DrawLine((mathemagics.Transform(scores[i-1]/100) * OVERVIEW_MAX_WIDTH, (i-1)*y_step), (mathemagics.Transform(scores[i]/100) * OVERVIEW_MAX_WIDTH, (i)*y_step), 
+                overview_graph.DrawLine((mathemagics.TransformLinear(scores[i-1]/100) * OVERVIEW_MAX_WIDTH, (i-1)*y_step), (mathemagics.TransformLinear(scores[i]/100) * OVERVIEW_MAX_WIDTH, (i)*y_step), 
                                         color=OVERVIEW_COLOR, width=OVERVIEW_LINE_WIDTH)
 
         # Draw points
-        overview_graph.DrawPoint((20/(max_score/OVERVIEW_MAX_WIDTH), 0), color=OVERVIEW_POINT_COLOR, size=OVERVIEW_POINT_SIZE)
-                                # 20 comes from LiChess's starting position analysis (https://lichess.org/analysis)
-        for i in range(1, len(scores)):
-            overview_graph.DrawPoint((mathemagics.Transform(scores[i]/100) * OVERVIEW_MAX_WIDTH, (i)*y_step), color=OVERVIEW_POINT_COLOR, size=OVERVIEW_POINT_SIZE)
+        for i in range(0, len(scores)):
+            overview_graph.DrawPoint((mathemagics.TransformLinear(scores[i]/100) * OVERVIEW_MAX_WIDTH, (i)*y_step + y_step/2), color=OVERVIEW_POINT_COLOR, size=OVERVIEW_POINT_SIZE)
 
         # Bind the overview graph mouse functions
         if overview_hover_func != None:
@@ -147,7 +151,7 @@ def BoardElements():
 	board = [
 		[
 			sg.Text("Black Player", font=DEFAULT_FONT_BOLD, background_color=BG_COLOR, key='black-player'),
-			sg.Text("(1000)", font=DEFAULT_FONT, background_color=BG_COLOR, key='black-rating')
+			sg.Text("(<Rating>)", font=DEFAULT_FONT, background_color=BG_COLOR, key='black-rating')
 		],
 		[
 			sg.Graph(canvas_size=(CANVAS_SIZE, CANVAS_SIZE),
@@ -159,7 +163,7 @@ def BoardElements():
 		],
 		[
 			sg.Text("White Player", font=DEFAULT_FONT_BOLD, background_color=BG_COLOR, key='white-player'),
-			sg.Text("(1000)", font=DEFAULT_FONT, background_color=BG_COLOR, key='white-rating')
+			sg.Text("(<Rating>)", font=DEFAULT_FONT, background_color=BG_COLOR, key='white-rating')
 		]
 	]
 
@@ -210,7 +214,7 @@ def AnalysisMenuElements(ratings):
                 graph_top_right=(100, 100),
                 key='menu-graph',
                 background_color=BG_COLOR,
-                pad=((5, 0), (34, 0))
+                pad=((5, 0), (0, 0))
             )
         ],
         columns,

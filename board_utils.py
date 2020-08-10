@@ -300,7 +300,7 @@ def _adjust_bar(eval):
 		_adjust_text(str(adjusted_eval), 
 						(7, 20) if adjusted_eval < 0 else (7, 790))
 		
-		proportion = -mathemagics.Transform(adjusted_eval)
+		proportion = -mathemagics.TransformNonlinear(adjusted_eval)
 		# Transform is set negative b/c of how the graph coords are set up
 
 		_set_bar_height(_SIZE/2 * (1 + proportion))
@@ -1398,7 +1398,7 @@ def PGNToFENList(PGN):
 	try:
 		return _pgn_to_fen_helper(PGN)
 	except:
-		print("Exception in user code:")
+		print("Exception:")
 		traceback.print_exc(file=sys.stdout)
 		return False
 
@@ -1433,7 +1433,6 @@ def _pgn_to_fen_helper(PGN):
 				""" TODO: Implement reading the tag info here; all used tags are listed on https://en.wikipedia.org/wiki/Portable_Game_Notation#Tag_pairs """
 				i += 1
 		elif PGN[i] == '\n':
-			print("Caught newline")
 			pass
 		elif PGN[i] == ' ':
 			pass

@@ -113,16 +113,24 @@ def run():
     # ((5. Worry about the exterior panel on the right side that displays information
     #       once 1-3 are done
 
-    print("_RATINGS: %s\n_SCORES: %s" % (_RATINGS, _SCORES))
+    #print("_RATINGS: %s\n_SCORES: %s" % (_RATINGS, _SCORES))
 
     board = builder.BoardElements()
     analysis_menu, columns = builder.AnalysisMenuElements(_RATINGS)
     analysis_bar, analysis_text = builder.AnalysisBarElements()
     analysis_bar_column = sg.Column([[analysis_bar], [analysis_text]], background_color=BG_COLOR, pad=((0, 0), (32, 0)), element_justification='center')
-    overview_column = sg.Column([[builder.MatchOverviewGraph([i for (i, j) in _SCORES])]], background_color=BG_COLOR, pad=((0, 0), (32, 0)),
-                                justification='center', element_justification='center', size=OVERVIEW_COLUMN_SIZE, 
-                                scrollable=OVERVIEW_SIZE[1] > OVERVIEW_COLUMN_SIZE[1] or OVERVIEW_SIZE[0] > OVERVIEW_COLUMN_SIZE[0], 
-                                vertical_scroll_only=OVERVIEW_COLUMN_SIZE[0] >= OVERVIEW_SIZE[0])
+    overview_column =   sg.Column(
+                        [
+                            [
+                                sg.Text('Match Overview', font=DEFAULT_FONT, background_color=BG_COLOR),
+                            ],
+                            [
+                                sg.Column([[builder.MatchOverviewGraph([i for (i, j) in _SCORES])]], background_color=BG_COLOR, 
+                                    pad=((0, 0), (0, 0)), justification='center', element_justification='center', size=OVERVIEW_COLUMN_SIZE, 
+                                    scrollable=OVERVIEW_SIZE[1] > OVERVIEW_COLUMN_SIZE[1] or OVERVIEW_SIZE[0] > OVERVIEW_COLUMN_SIZE[0], 
+                                    vertical_scroll_only=OVERVIEW_COLUMN_SIZE[0] >= OVERVIEW_SIZE[0])
+                            ]
+                        ], background_color=BG_COLOR, element_justification='center')
 
     thresh = INACCURACY*2 + (0 if _PLAYER == 'w' else 1)
     window = sg.Window("Match Analysis", [ 
@@ -157,7 +165,6 @@ def run():
 
     while True:
         event, _ = window.read()
-        print(event)
         if butil._PROMOTING:
             continue
 
@@ -179,13 +186,12 @@ def run():
             _switch_to_move(_CURR_INDEX)
         elif event == 'BACK-A-MOVE':
             if _CURR_INDEX != 0:
-                _switch_to_move(_CURR_INDEX - 1)
+                _switch_to_move(_CURR_INDEX - 1, False)
         elif event == 'FORWARD-A-MOVE':
             if _CURR_INDEX != len(_RATINGS) - 1:
-                _switch_to_move(_CURR_INDEX + 1)
+                _switch_to_move(_CURR_INDEX + 1, False)
         elif event in MENU_SWITCH_NAMES:
             info = window[event].__dict__
-            print(info['metadata'])
             if not '.disabled' in info['metadata']:
                 if 'on' in info['metadata']:
                     # Flipping switch off
@@ -208,7 +214,6 @@ def run():
                             window['BUTTON-RATE-EACH-MOVE'].__dict__['metadata'] = 'on.disabled'
                             window['BUTTON-RATE-EACH-MOVE'].Update(image_data=builder._button_on_data(False))
 
-                            _wait_for_move()
                             butil.FocusCurrentPosition(True)
                             butil.RateEachMove(True)
                             butil.LockBoard()
@@ -249,7 +254,6 @@ def run():
                             butil.ResetWrongMove()
                             butil.UpdateBoard()
 
-                            _eval_blank()
                             butil.FocusCurrentPosition(False)
                             butil.UnlockBoard()
                         elif event == 'BUTTON-ANALYSIS-BAR':
@@ -285,16 +289,14 @@ _CLICKED_INDEX = -1
 def _overview_click(event):
     global _CLICKED_INDEX
     y_step = max(OVERVIEW_PER_SCORE_MULTIPLIER, OVERVIEW_SIZE[1]/len(_SCORES))
-    _CLICKED_INDEX = int((event.y+y_step/2) // y_step)
-    print("CLICKED %s" % (_CLICKED_INDEX))
+    _CLICKED_INDEX = int((event.y) // y_step)
 
 
 def _overview_release(event):
     global _CLICKED_INDEX
 
     y_step = max(OVERVIEW_PER_SCORE_MULTIPLIER, OVERVIEW_SIZE[1]/len(_SCORES))
-    index = int((event.y+y_step/2) // y_step)
-    print("RELEASED %s" % (index))
+    index = int((event.y) // y_step)
     if index == _CLICKED_INDEX:
         _switch_to_move(index)
 
@@ -309,13 +311,13 @@ def _overview_hover(event):
         return
 
     y_step = max(OVERVIEW_PER_SCORE_MULTIPLIER, OVERVIEW_SIZE[1]/len(_SCORES))
-    index = int((event.y+y_step/2) // y_step)
+    index = int((event.y) // y_step)
 
     try:
         score = _OVERVIEW_TEXT[0].__dict__['metadata'][index]
-        x = mathemagics.Transform(score/100) * OVERVIEW_MAX_WIDTH + OVERVIEW_SIZE[0]/2 + (OVERVIEW_TEXT_ADJUSTMENT if index % 2 == 0 else -OVERVIEW_TEXT_ADJUSTMENT)
+        x = mathemagics.TransformLinear(score/100) * OVERVIEW_MAX_WIDTH + OVERVIEW_SIZE[0]/2 + (OVERVIEW_TEXT_ADJUSTMENT if index % 2 == 0 else -OVERVIEW_TEXT_ADJUSTMENT)
 
-        _OVERVIEW_TEXT[0].Widget.coords(_OVERVIEW_TEXT[1], (x, index * y_step))
+        _OVERVIEW_TEXT[0].Widget.coords(_OVERVIEW_TEXT[1], (x, index * y_step + y_step/2))
         display_score = _SCORES[index][0]
         if type(display_score) == str:
             if '-' in display_score:
@@ -409,7 +411,6 @@ def _update_menu_graph(text, text_color, bg_color, font):
 def _update_current_button(rating):
     global _CURR_INDEX
     rating = StrToRating(rating)
-    print("_CURR_INDEX: %s, _RATINGS[_CURR_INDEX]: %s" % (_CURR_INDEX, _RATINGS[_CURR_INDEX]))
     for j in range(0, _RATINGS[_CURR_INDEX] + 1):
         rows = WINDOW['%s-ratings-column-%s' % (_PLAYER, j)].__dict__['Rows']
         for button in rows:
@@ -420,19 +421,21 @@ def _update_current_button(rating):
                 button.__dict__['metadata'] = rating
 
 
-def _switch_to_move(index):
+def _switch_to_move(index, correct_perspective=True):
     global _SCORES
     global _RATINGS
     global _CURR_INDEX
     global _PLAYER
     _CURR_INDEX = index
 
-    print("_PLAYER: %s; index: %s" % (_PLAYER, index))
-    print(_PLAYER == 'w' and index % 2 == 0)
-    print(_PLAYER == 'b' and index % 2 == 1)
-    if (_PLAYER == 'w' and index % 2 == 1) or (_PLAYER == 'b' and index % 2 == 0):
-        print("Flip floop")
+    if ((_PLAYER == 'w' and index % 2 == 1) or (_PLAYER == 'b' and index % 2 == 0)) and correct_perspective:
         butil._flip_board()
+        if _PLAYER == 'w':
+            WINDOW['BUTTON-PLAYER'].__dict__['metadata'] = 'off'
+            WINDOW['BUTTON-PLAYER'].Update(image_data=builder._button_black_data(True))
+        else:
+            WINDOW['BUTTON-PLAYER'].__dict__['metadata'] = 'on'
+            WINDOW['BUTTON-PLAYER'].Update(image_data=builder._button_white_data(True))
     _PLAYER = 'w' if index % 2 == 0 else 'b'
 
     if 'on' in WINDOW['BUTTON-RATE-EACH-MOVE'].__dict__['metadata']:

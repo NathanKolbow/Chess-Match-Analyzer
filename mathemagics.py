@@ -4,7 +4,7 @@ from math import log
 """
     Basically clamps eval between (-1750, 1750) and linearly maps that range to (-95, 95)
 """
-def Transform(eval):
+def TransformLinear(eval):
     if eval > 1750:
         return 95
     elif eval < -1750:
@@ -14,8 +14,8 @@ def Transform(eval):
 
 """
     Maps floats from -Inf to Inf (softmin/max -25/25) to proportions from -95 to 95 on a smooth, steep curve
-
-def Transform(eval):
+"""
+def TransformNonlinear(eval):
     if eval == 0:
         return 0
     elif abs(eval) > 19.6:
@@ -27,7 +27,7 @@ def Transform(eval):
     
     ret = min(95, ret)
     return ret/100 if eval > 0 else -ret/100
-"""
+
 
 """
 # Based on integral((x/s-s)^2) where s = (3/2)^(1/4)
@@ -128,3 +128,9 @@ def ExpandCurve(a, b, ystart, yend):
         pts.append(tuple(point))
 
     return [(a, ystart)] + pts
+
+"""
+# Makes the curve linear
+def ExpandCurve(a, b, ystart, yend):
+    return([(a, ystart), (b, yend)])
+"""
