@@ -5,12 +5,13 @@ Uses Stockfish to give in-depth chess match analyses to help improve your game. 
 Adding support for multiple PGN lines and touching up the GUI and coding in animations for various components that are currently statically animated (piece transitions, buttons, etc.)
 
 # Requirements
-Python 3.8+, must be installed with Tk (this option is enabled by default)
+Python 3.8+
 
 Python packages:
 * PySimpleGUI
 * clipboard
 * pillow
+* Tk
 
 # Installation
 Download and install the latest version of Python from https://www.python.org/downloads/, make sure that Tk is also being installed
